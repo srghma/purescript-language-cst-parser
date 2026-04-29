@@ -1,0 +1,13 @@
+{"version": "1.2.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "NonEmpty",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "/home/srghma/projects/lean-nonempty",
+   "configFile": "lakefile.toml"}],
+ "name": "«purescript-language-cst-parser»",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}

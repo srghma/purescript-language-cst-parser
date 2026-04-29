@@ -198,6 +198,7 @@ newtype Row e = Row
 
 derive instance newtypeRow :: Newtype (Row e) _
 
+-- goes down
 newtype Module e = Module
   { header :: ModuleHeader e
   , body :: ModuleBody e

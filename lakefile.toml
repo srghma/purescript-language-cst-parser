@@ -1,0 +1,17 @@
+name = "purescript-language-cst-parser"
+version = "0.1.0"
+# defaultTargets = ["purescript-language-cst-parser"]
+defaultTargets = ["PurescriptLanguageCstParser"]
+
+[[lean_lib]]
+name = "PurescriptLanguageCstParser"
+
+# [[lean_exe]]
+# name = "purescript-language-cst-parser"
+# root = "Main"
+
+[[require]]
+name = "NonEmpty"
+path = "/home/srghma/projects/lean-nonempty"
+# git = "https://github.com/srghma/lean-nonempty"
+# rev = "main"
