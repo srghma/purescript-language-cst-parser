@@ -1,15 +1,16 @@
 import NonEmpty.CorrectByConstruction.Array
+import NonEmpty.String
 
 open NonEmpty.CorrectByConstruction.Array
 
 namespace PureScript.CST.Types
 
-def ModuleName := String
+def ModuleName := NonEmptyString
   deriving Repr, BEq, Ord
 
 structure SourcePos where
-  line : Int
-  column : Int
+  line : USize
+  column : USize
   deriving Repr, BEq, Ord
 
 structure SourceRange where
@@ -18,14 +19,14 @@ structure SourceRange where
   deriving Repr, BEq, Ord
 
 inductive CommentWithoutLine
-  | Comment : String → CommentWithoutLine
-  | Space : Int → CommentWithoutLine
+  | Comment (s : NonEmptyString)
+  | Space (i : USize)
   deriving Repr, BEq, Ord
 
 inductive Comment (l : Type)
-  | Comment : String → Comment l
-  | Space : Int → Comment l
-  | Line : l → Int → Comment l
+  | Comment (s : NonEmptyString)
+  | Space (i : USize)
+  | Line (l : l) (i : USize)
   deriving Repr, BEq, Ord
 
 inductive LineFeed
@@ -39,9 +40,9 @@ inductive SourceStyle
   deriving Repr, BEq, Ord
 
 inductive IntValue
-  | SmallInt : Int → IntValue
-  | BigInt : String → IntValue
-  | BigHex : String → IntValue
+  | SmallInt (i : USize)
+  | BigInt (s : NonEmptyString)
+  | BigHex (s : NonEmptyString)
   deriving Repr, BEq, Ord
 
 inductive Token
@@ -51,11 +52,11 @@ inductive Token
   | RightBrace
   | LeftSquare
   | RightSquare
-  | LeftArrow : SourceStyle → Token
-  | RightArrow : SourceStyle → Token
-  | RightFatArrow : SourceStyle → Token
-  | DoubleColon : SourceStyle → Token
-  | Forall : SourceStyle → Token
+  | LeftArrow (style : SourceStyle)
+  | RightArrow (style : SourceStyle)
+  | RightFatArrow (style : SourceStyle)
+  | DoubleColon (style : SourceStyle)
+  | Forall (style : SourceStyle)
   | Equals
   | Pipe
   | Tick
@@ -64,20 +65,20 @@ inductive Token
   | Underscore
   | Backslash
   | At
-  | LowerName : Option ModuleName → String → Token
-  | UpperName : Option ModuleName → String → Token
-  | Operator : Option ModuleName → String → Token
-  | SymbolName : Option ModuleName → String → Token
-  | SymbolArrow : SourceStyle → Token
-  | Hole : String → Token
-  | Char : String → Char → Token
-  | String : String → String → Token
-  | RawString : String → Token
-  | Int : String → IntValue → Token
-  | Number : String → Float → Token
-  | LayoutStart : Int → Token
-  | LayoutSep : Int → Token
-  | LayoutEnd : Int → Token
+  | LowerName (module_ : Option ModuleName) (name : NonEmptyString)
+  | UpperName (module_ : Option ModuleName) (name : NonEmptyString)
+  | Operator (module_ : Option ModuleName) (name : NonEmptyString)
+  | SymbolName (module_ : Option ModuleName) (name : NonEmptyString)
+  | SymbolArrow (style : SourceStyle)
+  | Hole (name : NonEmptyString)
+  | Char : (s : NonEmptyString) → (c : Char) → Token
+  | NonEmptyString (s : NonEmptyString) (value : NonEmptyString)
+  | RawString (s : NonEmptyString)
+  | Int (s : NonEmptyString) (value : IntValue)
+  | Number (s : NonEmptyString) (value : Float)
+  | LayoutStart (i : USize)
+  | LayoutSep (i : USize)
+  | LayoutEnd (i : USize)
   deriving Repr, BEq --, Ord -- bc of Float
 
 structure SourceToken where
@@ -87,16 +88,16 @@ structure SourceToken where
   value : Token
   deriving Repr, BEq
 
-def Ident := String
+def Ident := NonEmptyString
   deriving Repr, BEq, Ord
 
-def Proper := String
+def Proper := NonEmptyString
   deriving Repr, BEq, Ord
 
-def Label := String
+def Label := NonEmptyString
   deriving Repr, BEq, Ord
 
-def Operator := String
+def Operator := NonEmptyString
   deriving Repr, BEq, Ord
 
 structure Name (α : Type) where
@@ -134,16 +135,16 @@ structure Prefixed (α : Type) where
 
 -- why not def or abbrev? will break in recursive inductive types (e.g. Expr)
 inductive Delimited (α : Type)
-  | mk : Wrapped (Option (Separated α)) → Delimited α
+  | mk (v : Wrapped (Option (Separated α)))
   deriving Repr, BEq
 
 inductive DelimitedNonEmpty (α : Type)
-  | mk : Wrapped (Separated α) → DelimitedNonEmpty α
+  | mk (v : Wrapped (Separated α))
   deriving Repr, BEq
 
 inductive OneOrDelimited (α : Type)
-  | One : α → OneOrDelimited α
-  | Many : DelimitedNonEmpty α → OneOrDelimited α
+  | One (value : α)
+  | Many (separated : DelimitedNonEmpty α)
   deriving Repr, BEq
 
 structure TokenAnd (α : Type) where
@@ -151,66 +152,62 @@ structure TokenAnd (α : Type) where
   value : α
   deriving Repr, BEq
 
-inductive TypeVarBinding_impl (a type_e : Type)
-  | Kinded : Wrapped (Labeled a type_e) → TypeVarBinding_impl a type_e
-  | Name : a → TypeVarBinding_impl a type_e
+inductive TypeVarBindingF (a type_e : Type)
+  | Kinded (wrapped : Wrapped (Labeled a type_e))
+  | Name (name : a)
   deriving Repr, BEq
 
-mutual
+structure RowF (e type_e : Type) where
+  labels : Option (Separated (Labeled (Name Label) (type_e)))
+  tail : Option (SourceToken × type_e)
+  deriving Repr, BEq
+
+inductive TypeF (e type_e : Type)
+  | Var (name : Name Ident)
+  | Constructor (name : QualifiedName Proper)
+  | Wildcard (token : SourceToken)
+  | Hole (name : Name Ident)
+  | NonEmptyString (token : SourceToken) (value : NonEmptyString)
+  | Int (prefix_ : Option SourceToken) (token : SourceToken) (value : IntValue)
+  | Row (wrapped : Wrapped (RowF e type_e))
+  | Record (wrapped : Wrapped (RowF e type_e))
+  | Forall (open_ : SourceToken) (bindings : NonEmptyArray (TypeVarBindingF (Prefixed (Name Ident)) type_e)) (close : SourceToken) (body : type_e)
+  | Kinded (type_ : type_e) (sep : SourceToken) (kind : type_e)
+  | App (fn : type_e) (args : NonEmptyArray type_e)
+  | Op (first : type_e) (ops : NonEmptyArray (QualifiedName Operator × type_e))
+  | OpName (name : QualifiedName Operator)
+  | Arrow (dom : type_e) (token : SourceToken) (codom : type_e)
+  | ArrowName (token : SourceToken)
+  | Constrained (type_ : type_e) (token : SourceToken) (body : type_e)
+  | Parens (wrapped : Wrapped type_e)
+  | Error (data : e)
+  deriving Repr, BEq
 
 inductive Type_ (e : Type)
-  | Var : Name Ident → Type_ e
-  | Constructor : QualifiedName Proper → Type_ e
-  | Wildcard : SourceToken → Type_ e
-  | Hole : Name Ident → Type_ e
-  | String : SourceToken → String → Type_ e
-  | Int : Option SourceToken → SourceToken → IntValue → Type_ e
-  | Row : Wrapped (Row e) → Type_ e
-  | Record : Wrapped (Row e) → Type_ e
-  | Forall : SourceToken → NonEmptyArray (TypeVarBinding_impl (Prefixed (Name Ident)) (Type_ e)) → SourceToken → Type_ e → Type_ e
-  | Kinded : Type_ e → SourceToken → Type_ e → Type_ e
-  | App : Type_ e → NonEmptyArray (Type_ e) → Type_ e
-  | Op : Type_ e → NonEmptyArray (QualifiedName Operator × Type_ e) → Type_ e
-  | OpName : QualifiedName Operator → Type_ e
-  | Arrow : Type_ e → SourceToken → Type_ e → Type_ e
-  | ArrowName : SourceToken → Type_ e
-  | Constrained : Type_ e → SourceToken → Type_ e → Type_ e
-  | Parens : Wrapped (Type_ e) → Type_ e
-  | Error : e → Type_ e
+  | mk (v : TypeF e (Type_ e))
   deriving Repr, BEq
 
-structure RowTail (e : Type) where
-  token : SourceToken
-  type_ : Type_ e
-  deriving Repr, BEq
-
-structure Row (e : Type) where
-  labels : Option (Separated (Labeled (Name Label) (Type_ e)))
-  tail : Option (RowTail e)
-  deriving Repr, BEq
-
-end
 ---------------------------------------------------------------------------------------------------------
 inductive DataMembers
-  | All : SourceToken → DataMembers
-  | Enumerated : Delimited (Name Proper) → DataMembers
+  | All (token : SourceToken)
+  | Enumerated (separated : Delimited (Name Proper))
   deriving Repr, BEq
 
 inductive Export (e : Type)
-  | Value : Name Ident → Export e
-  | Op : Name Operator → Export e
-  | Type_ : Name Proper → Option DataMembers → Export e
-  | TypeOp : SourceToken → Name Operator → Export e
-  | Class : SourceToken → Name Proper → Export e
-  | Module : SourceToken → Name ModuleName → Export e
-  | Error : e → Export e
+  | Value (name : Name Ident)
+  | Op (name : Name Operator)
+  | Type_ (name : Name Proper) (optionMembers : Option DataMembers)
+  | TypeOp (token : SourceToken) (name : Name Operator)
+  | Class (token : SourceToken) (name : Name Proper)
+  | Module (token : SourceToken) (name : Name ModuleName)
+  | Error (data : e)
   deriving Repr, BEq
 
 ---------------------------------------------------------------------------------------------------------
 structure DataHead (e : Type) where
   keyword : SourceToken
   name : Name Proper
-  parameters : Array (TypeVarBinding_impl (Name Ident) (Type_ e))
+  parameters : Array (TypeVarBindingF (Name Ident) (Type_ e))
   deriving Repr, BEq
 
 structure DataCtor (e : Type) where
@@ -219,15 +216,15 @@ structure DataCtor (e : Type) where
   deriving Repr, BEq
 
 inductive ClassFundep
-  | Determined : SourceToken → NonEmptyArray (Name Ident) → ClassFundep
-  | Determines : NonEmptyArray (Name Ident) → SourceToken → NonEmptyArray (Name Ident) → ClassFundep
+  | Determined (token : SourceToken) (names : NonEmptyArray (Name Ident))
+  | Determines (left : NonEmptyArray (Name Ident)) (token : SourceToken) (right : NonEmptyArray (Name Ident))
   deriving Repr, BEq
 
 structure ClassHead (e : Type) where
   keyword : SourceToken
   typeConstraint : Option (OneOrDelimited (Type_ e) × SourceToken)
   name : Name Proper
-  parameters : Array (TypeVarBinding_impl (Name Ident) (Type_ e))
+  parameters : Array (TypeVarBindingF (Name Ident) (Type_ e))
   fundependencies : Option (SourceToken × Separated ClassFundep)
   deriving Repr, BEq
 
@@ -240,26 +237,30 @@ structure InstanceHead (e : Type) where
   deriving Repr, BEq
 
 inductive RecordLabeled (a : Type)
-  | Pun : Name Ident → RecordLabeled a
-  | Field : Name Label → SourceToken → a → RecordLabeled a
+  | Pun (name : Name Ident)
+  | Field (label : Name Label) (separator : SourceToken) (value : a)
+  deriving Repr, BEq
+
+inductive BinderF (e binder_e : Type)
+  | Wildcard (token : SourceToken)
+  | Var (name : Name Ident)
+  | Named (name : Name Ident) (atToken : SourceToken) (binder : binder_e)
+  | Constructor (name : QualifiedName Proper) (args : Array binder_e)
+  | Boolean (token : SourceToken) (val : Bool)
+  | Char (token : SourceToken) (val : Char)
+  | NonEmptyString (token : SourceToken) (val : NonEmptyString)
+  | Int (prefix_ : Option SourceToken) (token : SourceToken) (val : IntValue)
+  | Number (prefix_ : Option SourceToken) (token : SourceToken) (val : Float)
+  | Array (items : Delimited (binder_e))
+  | Record (fields : Delimited (RecordLabeled (binder_e)))
+  | Parens (wrapped : Wrapped (binder_e))
+  | Typed (binder : binder_e) (token : SourceToken) (type_ : Type_ e)
+  | Op (first : binder_e) (ops : NonEmptyArray (QualifiedName Operator × binder_e))
+  | Error (data : e)
   deriving Repr, BEq
 
 inductive Binder (e : Type)
-  | Wildcard : SourceToken → Binder e
-  | Var : Name Ident → Binder e
-  | Named : Name Ident → SourceToken → Binder e → Binder e
-  | Constructor : QualifiedName Proper → Array (Binder e) → Binder e
-  | Boolean : SourceToken → Bool → Binder e
-  | Char : SourceToken → Char → Binder e
-  | String : SourceToken → String → Binder e
-  | Int : Option SourceToken → SourceToken → IntValue → Binder e
-  | Number : Option SourceToken → SourceToken → Float → Binder e
-  | Array : Delimited (Binder e) → Binder e
-  | Record : Delimited (RecordLabeled (Binder e)) → Binder e
-  | Parens : (Wrapped (Binder e)) → Binder e
-  | Typed : Binder e → SourceToken → Type_ e → Binder e
-  | Op : Binder e → NonEmptyArray (QualifiedName Operator × Binder e) → Binder e
-  | Error : e → Binder e
+  | mk : BinderF e (Binder e) → Binder e
   deriving Repr, BEq
 
 structure InfixItem (α : Type) where
@@ -274,154 +275,149 @@ structure AndToken (α : Type) where
   token : SourceToken
   deriving Repr, BEq
 
-mutual
-
-inductive Expr (e : Type)
-  | Hole : Name Ident → Expr e
-  | Section : SourceToken → Expr e
-  | Ident : QualifiedName Ident → Expr e
-  | Constructor : QualifiedName Proper → Expr e
-  | Boolean : SourceToken → Bool → Expr e
-  | Char : SourceToken → Char → Expr e
-  | String : SourceToken → String → Expr e
-  | Int : SourceToken → IntValue → Expr e
-  | Number : SourceToken → Float → Expr e
-  | Array : Delimited (Expr e) → Expr e
-  | Record : Delimited (RecordLabeled (Expr e)) → Expr e
-  | Parens : (Wrapped (Expr e)) → Expr e
-  | Typed : Expr e → SourceToken → Type_ e → Expr e
-  | Infix : Expr e → NonEmptyArray (Wrapped (Expr e) × Expr e) → Expr e
-  | Op : Expr e → NonEmptyArray (QualifiedName Operator × Expr e) → Expr e
-  | OpName : QualifiedName Operator → Expr e
-  | Negate : SourceToken → Expr e → Expr e
-  | RecordAccessor : RecordAccessor e → Expr e
-  | RecordUpdate : Expr e → DelimitedNonEmpty (RecordUpdate e) → Expr e
-  | App : Expr e → NonEmptyArray (AppSpine_Expr e) → Expr e
-  | Lambda : Lambda e → Expr e
-  | If : IfThenElse e → Expr e
-  | Case : CaseOf e → Expr e
-  | Let : LetIn e → Expr e
-  | Do : DoBlock e → Expr e
-  | Ado : AdoBlock e → Expr e
-  | Error : e → Expr e
+inductive AppSpineF (e expr_e : Type)
+  | Type_ (token : SourceToken) (type_ : Type_ e)
+  | Term (expr : expr_e)
   deriving Repr, BEq
 
-inductive AppSpine_Expr (e : Type)
-  | Type_ : SourceToken → Type_ e → AppSpine_Expr e
-  | Term : Expr e → AppSpine_Expr e
+inductive RecordUpdateF (e expr_e : Type)
+  | Leaf (label : Name Label) (token : SourceToken) (expr : expr_e)
+  | Branch (label : Name Label) (updates : DelimitedNonEmpty (RecordUpdateF e expr_e))
   deriving Repr, BEq
 
-inductive RecordUpdate (e : Type)
-  | Leaf : Name Label → SourceToken → Expr e → RecordUpdate e
-  | Branch : Name Label → DelimitedNonEmpty (RecordUpdate e) → RecordUpdate e
-  deriving Repr, BEq
-
-structure RecordAccessor (e : Type) where
-  expr : Expr e
+structure RecordAccessorF (expr_e : Type) where
+  expr : expr_e
   dot : SourceToken
   path : Separated (Name Label)
   deriving Repr, BEq
 
-structure Lambda (e : Type) where
+structure LambdaF (e expr_e : Type) where
   symbol : SourceToken
   binders : NonEmptyArray (Binder e)
   arrow : SourceToken
-  body : Expr e
+  body : expr_e
   deriving Repr, BEq
 
-structure IfThenElse (e : Type) where
+structure IfThenElseF (expr_e : Type) where
   keyword : SourceToken
-  cond : Expr e
-  thenToken : SourceToken
-  trues_ : Expr e
-  elseToken : SourceToken
-  false_ : Expr e
+  cond : expr_e
+  then_ : SourceToken
+  true_ : expr_e
+  else_ : SourceToken
+  false_ : expr_e
   deriving Repr, BEq
 
-inductive Guarded (e : Type)
-  | Unconditional : SourceToken → Where e → Guarded e
-  | Guarded : NonEmptyArray (GuardedExpr e) → Guarded e
-  deriving Repr, BEq
-
-structure CaseOf (e : Type) where
-  keyword : SourceToken
-  separatedExpr : Separated (Expr e)
-  of : SourceToken
-  branches : NonEmptyArray (Separated (Binder e) × Guarded e)
-  deriving Repr, BEq
-
-structure LetIn (e : Type) where
-  keyword : SourceToken
-  separatedBindings : NonEmptyArray (LetBinding e)
-  in_ : SourceToken
-  body : Expr e
-  deriving Repr, BEq
-
-structure Where (e : Type) where
-  expr : Expr e
-  whereBindings : Option (SourceToken × (NonEmptyArray (LetBinding e)))
-  deriving Repr, BEq
-
-structure ValueBindingFields (e : Type) where
-  name : Name Ident
-  binders : Array (Binder e)
-  guarded : Guarded e
-  deriving Repr, BEq
-
-inductive LetBinding (e : Type)
-  | Signature : Labeled (Name Ident) (Type_ e) → LetBinding e
-  | Name : ValueBindingFields e → LetBinding e
-  | Pattern : Binder e → SourceToken → Where e → LetBinding e
-  | Error : e → LetBinding e
-  deriving Repr, BEq
-
-structure DoBlock (e : Type) where
-  doToken : SourceToken
-  statements : NonEmptyArray (DoStatement e)
-  deriving Repr, BEq
-
-inductive DoStatement (e : Type)
-  | Let : SourceToken → NonEmptyArray (LetBinding e) → DoStatement e
-  | Discard : Expr e → DoStatement e
-  | Bind : Binder e → SourceToken → Expr e → DoStatement e
-  | Error : e → DoStatement e
-  deriving Repr, BEq
-
-structure AdoBlock (e : Type) where
-  keyword : SourceToken
-  statements : Array (DoStatement e)
-  in_ : SourceToken
-  result : Expr e
-  deriving Repr, BEq
-
-structure CaseBranch (e : Type) where
-  binders : Separated (Binder e)
-  guarded : Guarded e
-  deriving Repr, BEq
-
-structure WhereBindings (e : Type) where
-  whereToken : SourceToken
-  value : Array (LetBinding e)
-  deriving Repr, BEq
-
-structure GuardedExpr (e : Type) where
-  token : SourceToken
-  pattern : Separated (PatternGuard e)
-  whereToken : SourceToken
-  where_ : Where e
-  deriving Repr, BEq
-
-structure PatternGuard (e : Type) where
+structure PatternGuardF (e expr_e : Type) where
   binder : Option (Binder e × SourceToken)
-  expr : Expr e
+  expr : expr_e
   deriving Repr, BEq
+
+mutual
+
+  structure ValueBindingFieldsF (e expr_e : Type) where
+    name    : Name Ident
+    binders : Array (Binder e)
+    guarded : GuardedF e expr_e
+  deriving Repr, BEq
+
+  inductive GuardedF (e expr_e : Type) where
+  | Unconditional (token : SourceToken) (where_ : WhereF e expr_e)
+  | Guarded (branches : NonEmptyArray (GuardedExprF e expr_e))
+  deriving Repr, BEq
+
+  structure GuardedExprF (e expr_e : Type) where
+    bar        : SourceToken
+    patterns   : Separated (PatternGuardF e expr_e)
+    separator  : SourceToken
+    where_     : WhereF e expr_e
+  deriving Repr, BEq
+
+  structure WhereF (e expr_e : Type) where
+    expr     : expr_e
+    bindings : Option (SourceToken × NonEmptyArray (LetBindingF e expr_e))
+  deriving Repr, BEq
+
+  inductive LetBindingF (e expr_e : Type) where
+  | Signature (labeled : Labeled (Name Ident) (Type_ e))
+  | Name (fields : ValueBindingFieldsF e expr_e)
+  | Pattern (binder : Binder e) (token : SourceToken) (where_ : WhereF e expr_e)
+  | Error (data : e)
+  deriving Repr, BEq
+
 end
+
+structure CaseOfF (e expr_e : Type) where
+  keyword : SourceToken
+  head : Separated expr_e
+  of : SourceToken
+  branches : NonEmptyArray (Separated (Binder e) × GuardedF e expr_e)
+  deriving Repr, BEq
+
+structure LetInF (e expr_e : Type) where
+  keyword : SourceToken
+  bindings : NonEmptyArray (LetBindingF e expr_e)
+  in_ : SourceToken
+  body : expr_e
+  deriving Repr, BEq
+
+inductive DoStatementF (e expr_e : Type)
+  | Let (token : SourceToken) (bindings : NonEmptyArray (LetBindingF e expr_e))
+  | Discard (expr : expr_e)
+  | Bind (binder : Binder e) (token : SourceToken) (expr : expr_e)
+  | Error (data : e)
+  deriving Repr, BEq
+
+structure DoBlockF (e expr_e : Type) where
+  keyword : SourceToken
+  statements : NonEmptyArray (DoStatementF e expr_e)
+  deriving Repr, BEq
+
+structure AdoBlockF (e expr_e : Type) where
+  keyword : SourceToken
+  statements : Array (DoStatementF e expr_e)
+  in_ : SourceToken
+  result : expr_e
+  deriving Repr, BEq
+
+inductive ExprF (e expr_e : Type)
+  | Hole (name : Name Ident)
+  | Section (token : SourceToken)
+  | Ident (name : QualifiedName Ident)
+  | Constructor (name : QualifiedName Proper)
+  | Boolean (token : SourceToken) (val : Bool)
+  | Char (token : SourceToken) (val : Char)
+  | NonEmptyString (token : SourceToken) (val : NonEmptyString)
+  | Int (token : SourceToken) (val : IntValue)
+  | Number (token : SourceToken) (val : Float)
+  | Array (items : Delimited expr_e)
+  | Record (fields : Delimited (RecordLabeled expr_e))
+  | Parens (wrapped : Wrapped expr_e)
+  | Typed (expr : expr_e) (token : SourceToken) (type_ : Type_ e)
+  | Infix (head : expr_e) (tail : NonEmptyArray (Wrapped expr_e × expr_e))
+  | Op (head : expr_e) (ops : NonEmptyArray (QualifiedName Operator × expr_e))
+  | OpName (name : QualifiedName Operator)
+  | Negate (token : SourceToken) (expr : expr_e)
+  | RecordAccessor (data : RecordAccessorF expr_e)
+  | RecordUpdate (expr : expr_e) (updates : DelimitedNonEmpty (RecordUpdateF e expr_e))
+  | App (fn : expr_e) (args : NonEmptyArray (AppSpineF e expr_e))
+  | Lambda (data : LambdaF e expr_e)
+  | If (data : IfThenElseF expr_e)
+  | Case (data : CaseOfF e expr_e)
+  | Let (data : LetInF e expr_e)
+  | Do (data : DoBlockF e expr_e)
+  | Ado (data : AdoBlockF e expr_e)
+  | Error (data : e)
+  deriving Repr, BEq
+
+inductive Expr (e : Type)
+  | mk : ExprF e (Expr e) → Expr e
+  deriving Repr, BEq
 
 -----------------------------------------------------------------------------------------------------------
 
 inductive InstanceBinding (e : Type)
-  | Signature : Labeled (Name Ident) (Type_ e) → InstanceBinding e
-  | Name : ValueBindingFields e → InstanceBinding e
+  | Signature (labeled : Labeled (Name Ident) (Type_ e))
+  | Name (fields : ValueBindingFieldsF e (Expr e))
   deriving Repr, BEq
 
 structure Instance (e : Type) where
@@ -430,9 +426,9 @@ structure Instance (e : Type) where
   deriving Repr, BEq
 
 inductive Foreign (e : Type)
-  | Value : Labeled (Name Ident) (Type_ e) → Foreign e
-  | Data : SourceToken → Labeled (Name Proper) (Type_ e) → Foreign e
-  | Kind : SourceToken → Name Proper → Foreign e
+  | Value (labeled : Labeled (Name Ident) (Type_ e))
+  | Data (keyword : SourceToken) (labeled : Labeled (Name Proper) (Type_ e))
+  | Kind (keyword : SourceToken) (name : Name Proper)
   deriving Repr, BEq
 
 inductive Fixity
@@ -442,13 +438,13 @@ inductive Fixity
   deriving Repr, BEq, Ord
 
 inductive FixityOp
-  | Value : QualifiedName (Ident ⊕ Proper) → SourceToken → Name Operator → FixityOp
-  | Type_ : SourceToken → QualifiedName Proper → SourceToken → Name Operator → FixityOp
+  | Value (name : QualifiedName (Ident ⊕ Proper)) (token : SourceToken) (op : Name Operator)
+  | Type_ (token1 : SourceToken) (name : QualifiedName Proper) (token2 : SourceToken) (op : Name Operator)
   deriving Repr, BEq
 
 structure FixityFields where
   keyword : SourceToken × Fixity
-  prec : SourceToken × Int
+  prec : SourceToken × USize
   operator : FixityOp
   deriving Repr, BEq
 
@@ -459,30 +455,30 @@ inductive Role
   deriving Repr, BEq, Ord
 
 inductive Declaration (e : Type)
-  | Data : DataHead e → Option (SourceToken × (Separated (DataCtor e))) → Declaration e
-  | Type_ : DataHead e → SourceToken → Type_ e → Declaration e
-  | Newtype : DataHead e → SourceToken → Name Proper → Type_ e → Declaration e
-  | Class : ClassHead e → Option (SourceToken × NonEmptyArray (Labeled (Name Ident) (Type_ e))) → Declaration e
-  | InstanceChain : Separated (Instance e) → Declaration e
-  | Derive : SourceToken → Option SourceToken → InstanceHead e → Declaration e
-  | KindSignature : SourceToken → Labeled (Name Proper) (Type_ e) → Declaration e
-  | Signature : Labeled (Name Ident) (Type_ e) → Declaration e
-  | Value : ValueBindingFields e → Declaration e
-  | Fixity : FixityFields → Declaration e
-  | Foreign : SourceToken → SourceToken → Foreign e → Declaration e
-  | Role : SourceToken → SourceToken → Name Proper → NonEmptyArray (SourceToken × Role) → Declaration e
-  | Error : e → Declaration e
+  | Data (head : DataHead e) (optionSeparator : Option (SourceToken × (Separated (DataCtor e))))
+  | Type_ (head : DataHead e) (token : SourceToken) (type_ : Type_ e)
+  | Newtype (head : DataHead e) (token : SourceToken) (name : Name Proper) (type_ : Type_ e)
+  | Class (head : ClassHead e) (optionSeparator : Option (SourceToken × NonEmptyArray (Labeled (Name Ident) (Type_ e))))
+  | InstanceChain (separated : Separated (Instance e))
+  | Derive (keyword : SourceToken) (optionToken : Option SourceToken) (head : InstanceHead e)
+  | KindSignature (token1 : SourceToken) (labeled : Labeled (Name Proper) (Type_ e))
+  | Signature (labeled : Labeled (Name Ident) (Type_ e))
+  | Value (fields : ValueBindingFieldsF e (Expr e))
+  | Fixity (fields : FixityFields)
+  | Foreign (token1 : SourceToken) (token2 : SourceToken) (foreign : Foreign e)
+  | Role (token1 : SourceToken) (token2 : SourceToken) (name : Name Proper) (roles : NonEmptyArray (SourceToken × Role))
+  | Error (data : e)
   deriving Repr, BEq
 
 -----------------------------------------------------------------------------------------------------------
 
 inductive Import (e : Type)
-  | Value : Name Ident → Import e
-  | Op : Name Operator → Import e
-  | Type_ : Name Proper → Option DataMembers → Import e
-  | TypeOp : SourceToken → Name Operator → Import e
-  | Class : SourceToken → Name Proper → Import e
-  | Error : e → Import e
+  | Value (name : Name Ident)
+  | Op (name : Name Operator)
+  | Type_ (name : Name Proper) (optionMembers : Option DataMembers)
+  | TypeOp (token : SourceToken) (name : Name Operator)
+  | Class (token : SourceToken) (name : Name Proper)
+  | Error (data : e)
   deriving Repr, BEq
 
 structure ImportDecl (e : Type) where
