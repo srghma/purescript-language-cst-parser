@@ -71,7 +71,7 @@ inductive Token
   | SymbolName (module_ : Option ModuleName) (name : NonEmptyString)
   | SymbolArrow (style : SourceStyle)
   | Hole (name : NonEmptyString)
-  | Char : (s : NonEmptyString) → (c : Char) → Token
+  | Char (s : NonEmptyString) (c : Char)
   | NonEmptyString (s : NonEmptyString) (value : NonEmptyString)
   | RawString (s : NonEmptyString)
   | Int (s : NonEmptyString) (value : IntValue)
@@ -244,7 +244,7 @@ inductive RecordLabeled (a : Type)
 inductive BinderF (e binder_e : Type)
   | Wildcard (token : SourceToken)
   | Var (name : Name Ident)
-  | Named (name : Name Ident) (atToken : SourceToken) (binder : binder_e)
+  | Named (name : Name Ident) (token : SourceToken) (binder : binder_e)
   | Constructor (name : QualifiedName Proper) (args : Array binder_e)
   | Boolean (token : SourceToken) (val : Bool)
   | Char (token : SourceToken) (val : Char)
@@ -261,13 +261,6 @@ inductive BinderF (e binder_e : Type)
 
 inductive Binder (e : Type)
   | mk : BinderF e (Binder e) → Binder e
-  deriving Repr, BEq
-
-structure InfixItem (α : Type) where
-  leftToken : SourceToken
-  left : α
-  rightToken : SourceToken
-  right : α
   deriving Repr, BEq
 
 structure AndToken (α : Type) where
@@ -311,6 +304,29 @@ structure PatternGuardF (e expr_e : Type) where
   binder : Option (Binder e × SourceToken)
   expr : expr_e
   deriving Repr, BEq
+
+-- ```mermaid
+-- graph TD
+--     LB[LetBindingF] -->|Pattern| W[WhereF]
+--     LB -->|Name| VBF[ValueBindingFieldsF]
+--
+--     VBF -->|guarded| G[GuardedF]
+--
+--     G -->|Unconditional| W
+--     G -->|Guarded| GE[GuardedExprF]
+--
+--     GE -->|where_| W
+--
+--     W -->|bindings| LB
+--
+--     subgraph "The Mutual Cycle"
+--     LB
+--     VBF
+--     G
+--     GE
+--     W
+--     end
+-- ```
 
 mutual
 
