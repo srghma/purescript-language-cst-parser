@@ -328,56 +328,95 @@ structure PatternGuardF (e expr_e : Type) where
 --     end
 -- ```
 
-mutual
-
-  structure ValueBindingFieldsF (e expr_e : Type) where
-    name    : Name Ident
-    binders : Array (Binder e)
-    guarded : GuardedF e expr_e
+-- 1. GuardExpr depends only on Where
+structure GuardedExprF (e expr_e where_e : Type) where
+  bar        : SourceToken
+  patterns   : Separated (PatternGuardF e expr_e)
+  separator  : SourceToken
+  where_     : where_e
   deriving Repr, BEq
 
-  inductive GuardedF (e expr_e : Type) where
-  | Unconditional (token : SourceToken) (where_ : WhereF e expr_e)
-  | Guarded (branches : NonEmptyArray (GuardedExprF e expr_e))
+-- 2. Guarded depends on Where and GuardExpr
+inductive GuardedF (e expr_e where_e guardedExpr_e : Type) where
+  | Unconditional (token : SourceToken) (where_ : where_e)
+  | Guarded (branches : NonEmptyArray guardedExpr_e)
   deriving Repr, BEq
 
-  structure GuardedExprF (e expr_e : Type) where
-    bar        : SourceToken
-    patterns   : Separated (PatternGuardF e expr_e)
-    separator  : SourceToken
-    where_     : WhereF e expr_e
+-- 3. ValueBindingFields depends on Guarded
+structure ValueBindingFieldsF (e expr_e guardedExpr_e : Type) where
+  name    : Name Ident
+  binders : Array (Binder e)
+  guarded : guardedExpr_e
+  deriving Repr, BEq
+-- 4. Where depends on the list of Bindings
+structure WhereF (e expr_e letBinding_e : Type) where
+  expr     : expr_e
+  bindings : Option (SourceToken × NonEmptyArray letBinding_e)
   deriving Repr, BEq
 
-  structure WhereF (e expr_e : Type) where
-    expr     : expr_e
-    bindings : Option (SourceToken × NonEmptyArray (LetBindingF e expr_e))
-  deriving Repr, BEq
-
-  inductive LetBindingF (e expr_e : Type) where
+-- 5. LetBinding is the "Sum" of the complex
+inductive LetBindingF (e expr_e valueBindingFields_e where_e : Type) where
   | Signature (labeled : Labeled (Name Ident) (Type_ e))
-  | Name (fields : ValueBindingFieldsF e expr_e)
-  | Pattern (binder : Binder e) (token : SourceToken) (where_ : WhereF e expr_e)
+  | Name (fields : valueBindingFields_e)
+  | Pattern (binder : Binder e) (token : SourceToken) (where_ : where_e)
   | Error (data : e)
   deriving Repr, BEq
 
-end
+-- abbrev LetBindingStep (e expr_e letBinding_e : Type) : Type :=
+--   let where_e        := WhereF        e expr_e letBinding_e
+--   let guardedExpr_e  := GuardedExprF  e expr_e where_e
+--   let guarded_e      := GuardedF      e expr_e where_e guardedExpr_e
+--   let vbf_e          := ValueBindingFieldsF e expr_e guarded_e
+--   LetBindingF e expr_e vbf_e where_e
+
+-- inductive LetBindingRecursive (e expr_e : Type) where
+--   | mk : LetBindingStep e expr_e (LetBindingRecursive e expr_e)
+--        → LetBindingRecursive e expr_e
+
+inductive LetBindingRecursive (e expr_e : Type) where
+  | mk : LetBindingF e expr_e
+      (ValueBindingFieldsF e expr_e
+        (GuardedF e expr_e
+          (WhereF e expr_e (LetBindingRecursive e expr_e))
+          (GuardedExprF e expr_e (WhereF e expr_e (LetBindingRecursive e expr_e)))))
+      (WhereF e expr_e (LetBindingRecursive e expr_e))
+    → LetBindingRecursive e expr_e
+  deriving Repr, BEq
+
+inductive WhereRecursive (e expr_e : Type) where
+  | mk : WhereF e expr_e (LetBindingRecursive e expr_e)
+    → WhereRecursive e expr_e
+  deriving Repr, BEq
+
+inductive GuardedRecursive (e expr_e : Type) where
+  | mk : GuardedF e expr_e
+      (WhereRecursive e expr_e)
+      (GuardedExprF e expr_e (WhereRecursive e expr_e))
+    → GuardedRecursive e expr_e
+  deriving Repr, BEq
+
+inductive ValueBindingFieldsRecursive (e expr_e : Type) where
+  | mk : ValueBindingFieldsF e expr_e
+      (GuardedRecursive e expr_e)
+    → ValueBindingFieldsRecursive e expr_e
+  deriving Repr, BEq
 
 structure CaseOfF (e expr_e : Type) where
   keyword : SourceToken
   head : Separated expr_e
   of : SourceToken
-  branches : NonEmptyArray (Separated (Binder e) × GuardedF e expr_e)
+  branches : NonEmptyArray (Separated (Binder e) × GuardedRecursive e expr_e)
   deriving Repr, BEq
 
 structure LetInF (e expr_e : Type) where
   keyword : SourceToken
-  bindings : NonEmptyArray (LetBindingF e expr_e)
+  bindings : NonEmptyArray (LetBindingRecursive e expr_e)
   in_ : SourceToken
   body : expr_e
   deriving Repr, BEq
 
 inductive DoStatementF (e expr_e : Type)
-  | Let (token : SourceToken) (bindings : NonEmptyArray (LetBindingF e expr_e))
+  | Let (token : SourceToken) (bindings : NonEmptyArray (LetBindingRecursive e expr_e))
   | Discard (expr : expr_e)
   | Bind (binder : Binder e) (token : SourceToken) (expr : expr_e)
   | Error (data : e)
@@ -433,7 +472,7 @@ inductive Expr (e : Type)
 
 inductive InstanceBinding (e : Type)
   | Signature (labeled : Labeled (Name Ident) (Type_ e))
-  | Name (fields : ValueBindingFieldsF e (Expr e))
+  | Name (fields : ValueBindingFieldsRecursive e (Expr e))
   deriving Repr, BEq
 
 structure Instance (e : Type) where
@@ -479,7 +518,7 @@ inductive Declaration (e : Type)
   | Derive (keyword : SourceToken) (optionToken : Option SourceToken) (head : InstanceHead e)
   | KindSignature (token1 : SourceToken) (labeled : Labeled (Name Proper) (Type_ e))
   | Signature (labeled : Labeled (Name Ident) (Type_ e))
-  | Value (fields : ValueBindingFieldsF e (Expr e))
+  | Value (fields : ValueBindingFieldsRecursive e (Expr e))
   | Fixity (fields : FixityFields)
   | Foreign (token1 : SourceToken) (token2 : SourceToken) (foreign : Foreign e)
   | Role (token1 : SourceToken) (token2 : SourceToken) (name : Name Proper) (roles : NonEmptyArray (SourceToken × Role))
