@@ -2,6 +2,13 @@
  "packagesDir": ".lake/packages",
  "packages":
  [{"type": "path",
+   "scope": "chasenorman",
+   "name": "Canonical",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "/home/srghma/projects/CanonicalLean",
+   "configFile": "lakefile.lean"},
+  {"type": "path",
    "scope": "",
    "name": "batteries",
    "manifestFile": "lake-manifest.json",

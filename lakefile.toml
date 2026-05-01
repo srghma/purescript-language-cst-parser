@@ -27,3 +27,10 @@ name = "batteries"
 # scope = "leanprover-community"
 # rev = "main"
 path = "/home/srghma/projects/batteries"
+
+[[require]]
+name = "Canonical"
+scope = "chasenorman"
+path = "/home/srghma/projects/CanonicalLean"
+# git = "https://github.com/chasenorman/CanonicalLean"
+# rev = "fix-v4.23.0-rc2"
