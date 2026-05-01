@@ -869,58 +869,51 @@ namespace NonEmptyArray
 
 end NonEmptyArray
 
--- def Type_.map {e f : Type} (g : e → f) : Type_ e → Type_ f
---   | .mk v => .mk (TypeF.map_bi g (Type_.map g) v)
--- termination_by t => sizeOf t
--- set_option maxRecDepth 9999999999
--- set_option maxHeartbeats 9999999999
 mutual
-
-  def Type_.mapArrayGo {e f : Type} (g : e → f) (arr : Array (Type_ e)) : Array (Type_ f) :=
+  private def Type_.mapArray {e f : Type} (g : e → f) (arr : Array (Type_ e)) : Array (Type_ f) :=
     arr.map (Type_.map g)
   termination_by sizeOf arr
   decreasing_by
     all_goals try simp
     all_goals try decreasing_trivial
 
-  def Type_.mapNonEmptyGo {e f : Type} (g : e → f) (args : NonEmptyArray (Type_ e))
+  private def Type_.mapNonEmpty {e f : Type} (g : e → f) (args : NonEmptyArray (Type_ e))
       : NonEmptyArray (Type_ f) :=
-    ⟨Type_.map g args.head, Type_.mapArrayGo g args.tail⟩
+    ⟨Type_.map g args.head, Type_.mapArray g args.tail⟩
   termination_by sizeOf args
   decreasing_by
     all_goals try simp
 
-  def TypeVarBindingF.mapGo {name e f : Type} [SizeOf name] (g : e → f)
+  private def TypeVarBindingF.mapType {name e f : Type} [SizeOf name] (g : e → f)
       (binding : TypeVarBindingF name (Type_ e)) : TypeVarBindingF name (Type_ f) :=
     match binding with
     | .Kinded w => .Kinded { w with value := { w.value with value := Type_.map g w.value.value } }
     | .Name n   => .Name n
   termination_by sizeOf binding
   decreasing_by
-    simp_all only [TypeVarBindingF.Kinded.sizeOf_spec]
     simp_wf
     have h1 := Wrapped.sizeOf_value w
     have h2 := Labeled.sizeOf_value w.value
     omega
 
-  def TypeF_Forall_Bindings.mapArrayGo {e f : Type} (g : e → f)
+  private def TypeF_Forall_Bindings.mapTypeArray {e f : Type} (g : e → f)
       (arr : Array (TypeVarBindingF (Prefixed (Name Ident)) (Type_ e))) :
       Array (TypeVarBindingF (Prefixed (Name Ident)) (Type_ f)) :=
-    arr.attach.map (fun ⟨entry, _⟩ => TypeVarBindingF.mapGo g entry)
+    arr.attach.map (fun ⟨entry, _h⟩ => TypeVarBindingF.mapType g entry)
   termination_by sizeOf arr
   decreasing_by
     simp_wf
     decreasing_trivial
 
-  def TypeF_Forall_Bindings.mapGo {e f : Type} (g : e → f)
+  private def TypeF_Forall_Bindings.mapType {e f : Type} (g : e → f)
       (bs : TypeF_Forall_Bindings (Type_ e)) : TypeF_Forall_Bindings (Type_ f) :=
-    ⟨TypeVarBindingF.mapGo g bs.head, TypeF_Forall_Bindings.mapArrayGo g bs.tail⟩
+    ⟨TypeVarBindingF.mapType g bs.head, TypeF_Forall_Bindings.mapTypeArray g bs.tail⟩
   termination_by sizeOf bs
   decreasing_by
     simp_wf
     decreasing_trivial
 
-  def TypeF_Op_Ops.mapElemGo {e f : Type} (g : e → f)
+  private def TypeF_Op_Ops.mapTypeElem {e f : Type} (g : e → f)
       (op : QualifiedName Operator × Type_ e) : QualifiedName Operator × Type_ f :=
     (op.1, Type_.map g op.2)
   termination_by sizeOf op
@@ -929,54 +922,56 @@ mutual
     simp
     omega
 
-  def TypeF_Op_Ops.mapArrayGo {e f : Type} (g : e → f)
+  private def TypeF_Op_Ops.mapTypeArray {e f : Type} (g : e → f)
       (arr : Array (QualifiedName Operator × Type_ e)) :
       Array (QualifiedName Operator × Type_ f) :=
-    arr.map (TypeF_Op_Ops.mapElemGo g)
+    arr.map (TypeF_Op_Ops.mapTypeElem g)
   termination_by sizeOf arr
   decreasing_by
     all_goals try simp
     all_goals try decreasing_trivial
 
-  def TypeF_Op_Ops.mapGo {e f : Type} (g : e → f)
+  private def TypeF_Op_Ops.mapType {e f : Type} (g : e → f)
       (ops : TypeF_Op_Ops (Type_ e)) : TypeF_Op_Ops (Type_ f) :=
-    ⟨TypeF_Op_Ops.mapElemGo g ops.head, TypeF_Op_Ops.mapArrayGo g ops.tail⟩
+    ⟨TypeF_Op_Ops.mapTypeElem g ops.head, TypeF_Op_Ops.mapTypeArray g ops.tail⟩
   termination_by sizeOf ops
   decreasing_by
     all_goals try simp
 
-  def Labeled.mapValueGo {α e f : Type} [SizeOf α] (g : e → f)
+  private def Labeled.mapTypeValue {α e f : Type} [SizeOf α] (g : e → f)
       (l : Labeled α (Type_ e)) : Labeled α (Type_ f) :=
     { l with value := Type_.map g l.value }
   termination_by sizeOf l
   decreasing_by
     simp_wf
 
-  def Separated.mapTailElemGo {α e f : Type} [SizeOf α] (g : e → f)
+  private def Separated.mapTypeTailElem {α e f : Type} [SizeOf α] (g : e → f)
       (entry : SourceToken × Labeled α (Type_ e)) :
       SourceToken × Labeled α (Type_ f) :=
-    (entry.1, Labeled.mapValueGo g entry.2)
+    (entry.1, Labeled.mapTypeValue g entry.2)
   termination_by sizeOf entry
   decreasing_by
     cases entry
     simp
     omega
 
-  def Separated.mapTailArrayGo {α e f : Type} [SizeOf α] (g : e → f)
-      (tail : Array (SourceToken × Labeled α (Type_ e))) :
-      Array (SourceToken × Labeled α (Type_ f)) :=
-    tail.attach.map (fun ⟨entry, _⟩ => Separated.mapTailElemGo g entry)
+  private def Separated.mapTypeTailArray {α e f : Type} [SizeOf α] (tail : Array (SourceToken × Labeled α (Type_ e)))
+      (g : e → f) : Array (SourceToken × Labeled α (Type_ f)) :=
+    tail.attach.map (fun ⟨entry, _h⟩ => Separated.mapTypeTailElem g entry)
   termination_by sizeOf tail
+  decreasing_by
+    simp_wf
+    decreasing_trivial
 
-  def Separated.mapGo {α e f : Type} [SizeOf α] (g : e → f)
+  private def Separated.mapType {α e f : Type} [SizeOf α] (g : e → f)
       (s : Separated (Labeled α (Type_ e))) : Separated (Labeled α (Type_ f)) :=
-    ⟨Labeled.mapValueGo g s.head, Separated.mapTailArrayGo g s.tail⟩
+    ⟨Labeled.mapTypeValue g s.head, Separated.mapTypeTailArray s.tail g⟩
   termination_by sizeOf s
   decreasing_by
     simp_wf
     decreasing_trivial
 
-  def RowF.mapTailGo {e f : Type} (g : e → f)
+  private def RowF.mapTypeTail {e f : Type} (g : e → f)
       (tail : SourceToken × Type_ e) : SourceToken × Type_ f :=
     (tail.1, Type_.map g tail.2)
   termination_by sizeOf tail
@@ -985,45 +980,33 @@ mutual
     simp
     omega
 
-  def Type_.map {e f : Type} (g : e → f) (t : Type_ e) : Type_ f :=
-    match t with
-    | .mk v => .mk (TypeF.mapGo g v)
-  termination_by sizeOf t
+  def Type_.map {e f : Type} (g : e → f) : Type_ e → Type_ f
+    | .mk v => .mk (TypeF.mapType g v)
+  termination_by t => sizeOf t
   decreasing_by
-    simp_all only [Type_.mk.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one]
+    simp_wf
 
-
-  -- TypeF pattern match exposes direct subterms:
-  def TypeF.mapGo {e f : Type} (g : e → f) (v : TypeF e (Type_ e))
+  def TypeF.mapType {e f : Type} (g : e → f) (v : TypeF e (Type_ e))
       : TypeF f (Type_ f) :=
     match v with
-    | .Var n                   => .Var n
-    | .Constructor n           => .Constructor n
-    | .Wildcard t              => .Wildcard t
-    | .Hole n                  => .Hole n
-    | .NonEmptyString t v      => .NonEmptyString t v
-    | .Int p t v               => .Int p t v
-    | .Kinded t sep k          => .Kinded (Type_.map g t) sep (Type_.map g k)  -- ✓ subterms
-    | .Arrow d tok c           => .Arrow (Type_.map g d) tok (Type_.map g c)    -- ✓ subterms
-    | .Constrained t tok b     => .Constrained (Type_.map g t) tok (Type_.map g b) -- ✓
-    | .Parens w                => .Parens { w with value := Type_.map g w.value }  -- ✓ w.value is subterm
-    | .Error e                 => .Error (g e)
-    | .OpName n                => .OpName n
-    | .ArrowName t             => .ArrowName t
-    | .App fn args             => .App (Type_.map g fn) (Type_.mapNonEmptyGo g args)
-    | .Forall o bs c body      =>
-        .Forall o
-          (TypeF_Forall_Bindings.mapGo g bs)
-          c
-          (Type_.map g body)
-    | .Op first ops            =>
-        .Op (Type_.map g first) (TypeF_Op_Ops.mapGo g ops)
-    | .Row w                  =>
-        match w with
-        | ⟨open_, r, close⟩ => .Row ⟨open_, RowF.mapGo g r, close⟩
-    | .Record w               =>
-        match w with
-        | ⟨open_, r, close⟩ => .Record ⟨open_, RowF.mapGo g r, close⟩
+    | .Var n                 => .Var n
+    | .Constructor n         => .Constructor n
+    | .Wildcard t            => .Wildcard t
+    | .Hole n                => .Hole n
+    | .NonEmptyString t v    => .NonEmptyString t v
+    | .Int p t v             => .Int p t v
+    | .Kinded t sep k        => .Kinded (Type_.map g t) sep (Type_.map g k)
+    | .Arrow d tok c         => .Arrow (Type_.map g d) tok (Type_.map g c)
+    | .Constrained t tok b   => .Constrained (Type_.map g t) tok (Type_.map g b)
+    | .Parens w              => .Parens { w with value := Type_.map g w.value }
+    | .Error e               => .Error (g e)
+    | .OpName n              => .OpName n
+    | .ArrowName t           => .ArrowName t
+    | .App fn args           => .App (Type_.map g fn) (Type_.mapNonEmpty g args)
+    | .Forall o bs c body    => .Forall o (TypeF_Forall_Bindings.mapType g bs) c (Type_.map g body)
+    | .Op first ops          => .Op (Type_.map g first) (TypeF_Op_Ops.mapType g ops)
+    | .Row ⟨open_, r, close⟩ => .Row ⟨open_, RowF.mapType g r, close⟩
+    | .Record ⟨open_, r, close⟩ => .Record ⟨open_, RowF.mapType g r, close⟩
   termination_by sizeOf v
   decreasing_by
     · simp_all only [TypeF.Kinded.sizeOf_spec]
@@ -1062,26 +1045,24 @@ mutual
         simpa using (Wrapped.sizeOf_value (Wrapped.mk open_ r close))
       omega
 
-  def RowF.mapGo {e f : Type} (g : e → f) (r : RowF e (Type_ e))
+  private def RowF.mapType {e f : Type} (g : e → f) (r : RowF e (Type_ e))
       : RowF f (Type_ f) :=
     match r with
     | { labels := none, tail := none } => { labels := none, tail := none }
     | { labels := some labels, tail := none } =>
-        { labels := some (Separated.mapGo g labels), tail := none }
+        { labels := some (Separated.mapType g labels), tail := none }
     | { labels := none, tail := some tail } =>
-        { labels := none, tail := some (RowF.mapTailGo g tail) }
+        { labels := none, tail := some (RowF.mapTypeTail g tail) }
     | { labels := some labels, tail := some tail } =>
-        { labels := some (Separated.mapGo g labels), tail := some (RowF.mapTailGo g tail) }
+        { labels := some (Separated.mapType g labels), tail := some (RowF.mapTypeTail g tail) }
   termination_by sizeOf r
   decreasing_by
     · simp_wf
-      omega
+      decreasing_trivial
     · simp_wf
       decreasing_trivial
     · simp_wf
-      obtain ⟨fst, snd⟩ := tail
-      simp_all only [Prod.mk.sizeOf_spec]
-      omega
+      decreasing_trivial
     · simp_wf
       decreasing_trivial
 end
