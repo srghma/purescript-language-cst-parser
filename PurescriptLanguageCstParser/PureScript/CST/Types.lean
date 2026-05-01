@@ -3,6 +3,7 @@ import NonEmpty.String
 import Aesop
 
 open NonEmpty.CorrectByConstruction.Array
+open NonEmpty.String
 
 namespace PureScript.CST.Types
 
@@ -154,19 +155,31 @@ structure Separated (α : Type) where
   tail : Array (SourceToken × α)
   deriving Repr, BEq
 
+namespace Separated
+
+@[always_inline, simp] def map {α β : Type} (g : α → β) (s : Separated α) : Separated β := { head := g s.head, tail := s.tail.map (fun (tok, a) => (tok, g a)) }
+
+@[simp] theorem id_map {α : Type} (s : Separated α) : (s.map id) = s := by
+  simp_all only [map, id_eq, Array.map_id_fun']
+
+@[simp] theorem comp_map {α β γ : Type} (g : α → β) (h : β → γ) (s : Separated α) : (s.map (h ∘ g)) = (s.map g |>.map h) := by
+  funext
+  simp_all only [map, Function.comp, Array.map_map, Separated.mk.injEq, Array.map_inj_left,
+      implies_true, and_self]
+
+@[simp] theorem map_id_fun {α : Type} : map (id : α → α) = id := by funext s; exact id_map s
+
+@[simp] theorem map_comp_fun {α β γ : Type} (g : α → β) (h : β → γ) : map (h ∘ g) = map h ∘ map g := by funext s; exact comp_map g h s
+
+end Separated
+
 @[always_inline] instance : Functor Separated where
-  map f s := { head := f s.head, tail := s.tail.map (fun (tok, a) => (tok, f a)) }
+  map := Separated.map
 
 instance : LawfulFunctor Separated where
   map_const := rfl
-  id_map s := by
-    simp only [Functor.map, id_eq, Array.map_id_fun']
-  comp_map g h s := by
-    simp only [Functor.map, Function.comp, Array.map_map, Separated.mk.injEq, Array.map_inj_left,
-      implies_true, and_self]
-
-@[simp] theorem Separated.id_map {α : Type} (s : Separated α) : (id <$> s) = s := LawfulFunctor.id_map s
-@[simp] theorem Separated.comp_map {α β γ : Type} (g : α → β) (h : β → γ) (s : Separated α) : (h <$> g <$> s) = ((h ∘ g) <$> s) := (LawfulFunctor.comp_map g h s).symm
+  id_map s := Separated.id_map s
+  comp_map g h s := Separated.comp_map g h s
 
 structure Labeled (α β : Type) where
   label : α
@@ -186,13 +199,6 @@ namespace Labeled
 @[simp] theorem map_label_id {α β : Type} (l : Labeled α β) : map_label (id : α → α) l = l := rfl
 @[simp] theorem map_label_comp {α β γ δ : Type} (g : α → β) (h : β → γ) (l : Labeled α δ) : map_label (h ∘ g) l = map_label h (map_label g l) := rfl
 
-end Labeled
-
-@[always_inline] instance : Functor (Labeled α) where
-  map := Labeled.map_value
-
-namespace Labeled
-
 @[simp] theorem map_label_id_fun {α β : Type} : map_label (id : α → α) = (id : Labeled α β → Labeled α β) := by funext l; exact map_label_id l
 @[simp] theorem map_value_id_fun {α β : Type} : map_value (id : β → β) = (id : Labeled α β → Labeled α β) := by funext l; exact map_value_id l
 
@@ -203,18 +209,29 @@ namespace Labeled
 
 end Labeled
 
+@[always_inline] instance : Functor (Labeled α) where
+  map := Labeled.map_value
+
 instance : LawfulFunctor (Labeled α) where
   map_const := rfl
   id_map _ := rfl
   comp_map _ _ _ := rfl
-
 
 structure Prefixed (α : Type) where
   prefix_ : Option SourceToken
   value : α
   deriving Repr, BEq
 
-@[always_inline] instance : Functor Prefixed where map f p := { p with value := f p.value }
+namespace Prefixed
+
+@[always_inline] def map (f : α → β) (p : Prefixed α) : Prefixed β := { p with value := f p.value }
+
+@[simp] theorem id_map {α : Type} (p : Prefixed α) : (map id p) = p := rfl
+@[simp] theorem comp_map {α β γ : Type} (f : α → β) (g : β → γ) (p : Prefixed α) : (map (g ∘ f) p) = (map g (map f p)) := rfl
+
+end Prefixed
+
+@[always_inline] instance : Functor Prefixed where map := Prefixed.map
 instance : LawfulFunctor Prefixed where
   map_const := rfl
   id_map _ := rfl
@@ -225,21 +242,28 @@ inductive Delimited (α : Type)
   | mk (v : Wrapped (Option (Separated α)))
   deriving Repr, BEq
 
+namespace Delimited
+
+@[always_inline, simp] def map (f : α → β) : Delimited α → Delimited β
+  | .mk v => .mk { v with value := (Separated.map f) <$> v.value }
+
+@[simp] theorem id_map {α : Type} (d : Delimited α) : map id d = d := by
+  cases d with | mk v =>
+  simp [map, Separated.map_id_fun]
+
+@[simp] theorem comp_map {α β γ : Type} (f : α → β) (g : β → γ) (d : Delimited α) : (map (g ∘ f) d) = (map g (map f d)) := by
+  cases d with | mk v =>
+  simp [map, Separated.map_comp_fun]
+
+end Delimited
+
 @[always_inline] instance : Functor Delimited where
-  map f | .mk w => .mk { w with value := (w.value.map (f <$> ·)) }
+  map := Delimited.map
 
 instance : LawfulFunctor Delimited where
   map_const := rfl
-  id_map | .mk w => by simp only [Functor.map, id_eq, Array.map_id_fun', Option.map_id_fun']
-  comp_map g h d := by
-    obtain ⟨⟨_, v, _⟩⟩ := d
-    cases v with
-    | none   => rfl
-    | some s =>
-      simp only [Functor.map, Function.comp, Option.map]
-      congr 1
-      simp only [Array.map_map, Wrapped.mk.injEq, Option.some.injEq, Separated.mk.injEq,
-        Array.map_inj_left, Function.comp, implies_true, and_self]
+  id_map := Delimited.id_map
+  comp_map := Delimited.comp_map
 
 inductive DelimitedNonEmpty (α : Type)
   | mk (v : Wrapped (Separated α))
@@ -250,10 +274,8 @@ instance : Functor DelimitedNonEmpty where
 
 instance : LawfulFunctor DelimitedNonEmpty where
   map_const := rfl
-  id_map | .mk w => by simp only [Functor.map, id_eq, Array.map_id_fun']
-  comp_map g h | .mk w => by simp only [Functor.map, Function.comp_apply, Array.map_map,
-    DelimitedNonEmpty.mk.injEq, Wrapped.mk.injEq, Separated.mk.injEq, Array.map_inj_left,
-    implies_true, and_self]
+  id_map | .mk w => by simp [Functor.map]
+  comp_map g h | .mk w => by simp [Functor.map]
 
 inductive OneOrDelimited (α : Type)
   | One (value : α)
@@ -267,10 +289,8 @@ instance : Functor OneOrDelimited where
 
 instance : LawfulFunctor OneOrDelimited where
   map_const := rfl
-  id_map a := by cases a <;> simp only [Functor.map, id_eq, Array.map_id_fun']
-  comp_map g h a := by cases a <;> simp only [Functor.map, Function.comp_apply, Array.map_map,
-    OneOrDelimited.Many.injEq, DelimitedNonEmpty.mk.injEq, Wrapped.mk.injEq, Separated.mk.injEq,
-    Array.map_inj_left, implies_true, and_self]
+  id_map a := by cases a <;> simp [Functor.map]
+  comp_map g h a := by cases a <;> simp [Functor.map]
 
 -- Note: the above requires Functor for DelimitedNonEmpty, defined below.
 
@@ -325,21 +345,41 @@ structure RowF (e type_e : Type) where
   tail : Option (SourceToken × type_e)
   deriving Repr, BEq
 
-instance : Functor (RowF e) where
-  map f r := {
-    labels := r.labels.map (Functor.map (Functor.map f))
+namespace RowF
+@[simp] def map (f : type_e → type_e') : RowF e type_e → RowF e type_e'
+  | { labels, tail } => {
+    labels := labels.map (Functor.map (Functor.map f))
     --                       ^Separated  ^Labeled
-    tail   := r.tail.map (fun (tok, t) => (tok, f t))
+    tail   := tail.map (fun (tok, t) => (tok, f t))
   }
+
+@[simp] theorem id_map {e α : Type} (r : RowF e α) : (map id r) = r := by
+  cases r
+  simp_all only [map, id_eq, Option.map_id_fun', mk.injEq, and_true]
+  aesop?
+
+@[simp] theorem comp_map {e α β γ : Type} (f : α → β) (g : β → γ) (r : RowF e α) : (map (g ∘ f) r) = (map g (map f r)) := by
+  cases r
+  simp [map, Labeled.map_value_comp_fun, Separated.map_comp_fun]
+  apply And.intro
+  · ext a : 1
+    simp_all only [Option.map_eq_some_iff, Function.comp_apply, Array.map_map]
+    rfl
+  · rfl
+
+end RowF
+
+instance : Functor (RowF e) where
+  map := RowF.map
 
 instance : LawfulFunctor (RowF e) where
   map_const := rfl
   id_map r := by
     cases r
-    simp only [Functor.map, Labeled.map_value_id, Array.map_id_fun', id_eq, Option.map_id_fun']
+    simp [Functor.map, Labeled.map_value_id_fun, Separated.map_id_fun, Option.map_id_fun']
   comp_map g h r := by
     cases r
-    simp only [Functor.map, Labeled.map_value_comp, Function.comp, Option.map_map, RowF.mk.injEq]
+    simp [Functor.map, Labeled.map_value_comp_fun, Separated.map_comp_fun]
     apply And.intro
     · ext a : 1
       simp_all only [Option.map_eq_some_iff, Function.comp_apply, Array.map_map]
@@ -529,7 +569,7 @@ mutual
     | .App fn args             =>
         .App (Type_.map g fn)
              (args.mapIdx (fun i x =>
-               have : sizeOf x < sizeOf (.App fn args) := by
+               have : sizeOf x < sizeOf (PureScript.CST.Types.TypeF.App fn args) := by
                  simp [SizeOf.sizeOf, TypeF.instSizeOf]
                  exact Nat.lt_of_lt_of_le
                    (NonEmptyArray.sizeOf_get_lt args i)
@@ -537,14 +577,14 @@ mutual
                Type_.map g x))
     | .Forall o bs c body      =>
         .Forall o (bs.mapIdx (fun i x =>
-                    have : sizeOf x.value < sizeOf (.Forall o bs c body) := by
+                    have : sizeOf x.value < sizeOf (PureScript.CST.Types.TypeF.Forall o bs c body) := by
                       sorry -- NonEmptyArray.sizeOf_get_lt + Labeled.sizeOf_value_lt
-                    f <$> x))
+                    Type_.map g <$> x))
                   c (Type_.map g body)
     | .Op first ops            =>
         .Op (Type_.map g first)
             (ops.mapIdx (fun i ⟨op, t⟩ =>
-              have : sizeOf t < sizeOf (.Op first ops) := by sorry
+              have : sizeOf t < sizeOf (PureScript.CST.Types.TypeF.Op first ops) := by sorry
               (op, Type_.map g t)))
     | .Row w  => .Row  (RowF.mapGo g <$> w)
     | .Record w => .Record (RowF.mapGo g <$> w)
