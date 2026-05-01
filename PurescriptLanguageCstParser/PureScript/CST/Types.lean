@@ -348,24 +348,17 @@ structure RowF (e type_e : Type) where
 namespace RowF
 @[simp] def map (f : type_e → type_e') : RowF e type_e → RowF e type_e'
   | { labels, tail } => {
-    labels := labels.map (Functor.map (Functor.map f))
-    --                       ^Separated  ^Labeled
+    labels := labels.map (Separated.map (Labeled.map_value f))
     tail   := tail.map (fun (tok, t) => (tok, f t))
   }
 
 @[simp] theorem id_map {e α : Type} (r : RowF e α) : (map id r) = r := by
-  cases r
-  simp_all only [map, id_eq, Option.map_id_fun', mk.injEq, and_true]
-  aesop?
+  cases r; simp [map, Separated.map_id_fun, Labeled.map_value_id_fun]
 
 @[simp] theorem comp_map {e α β γ : Type} (f : α → β) (g : β → γ) (r : RowF e α) : (map (g ∘ f) r) = (map g (map f r)) := by
-  cases r
-  simp [map, Labeled.map_value_comp_fun, Separated.map_comp_fun]
-  apply And.intro
-  · ext a : 1
-    simp_all only [Option.map_eq_some_iff, Function.comp_apply, Array.map_map]
-    rfl
-  · rfl
+  cases r with | mk l t =>
+  simp [map, Separated.map_comp_fun, Labeled.map_value_comp_fun, Option.map_map]
+  cases t <;> rfl
 
 end RowF
 
@@ -374,23 +367,10 @@ instance : Functor (RowF e) where
 
 instance : LawfulFunctor (RowF e) where
   map_const := rfl
-  id_map r := by
-    cases r
-    simp [Functor.map, Labeled.map_value_id_fun, Separated.map_id_fun, Option.map_id_fun']
-  comp_map g h r := by
-    cases r
-    simp [Functor.map, Labeled.map_value_comp_fun, Separated.map_comp_fun]
-    apply And.intro
-    · ext a : 1
-      simp_all only [Option.map_eq_some_iff, Function.comp_apply, Array.map_map]
-      rfl
-    · rfl
+  id_map r := RowF.id_map r
+  comp_map g h r := RowF.comp_map g h r
 
 namespace RowF
-  @[simp] theorem id_map {e α : Type} (r : RowF e α) : (id <$> r) = r := LawfulFunctor.id_map r
-
-  @[simp] theorem comp_map {e α β γ : Type} (g : α → β) (h : β → γ) (r : RowF e α) : (h <$> g <$> r) = ((h ∘ g) <$> r) := (LawfulFunctor.comp_map g h r).symm
-
   def map_e {e f α : Type} (_g : e → f) (r : RowF e α) : RowF f α :=
     { labels := r.labels, tail := r.tail }
 
@@ -456,33 +436,33 @@ namespace TypeF
 
   @[simp] theorem map_comp {e α β γ : Type} (g : α → β) (h : β → γ) (t : TypeF e α) :
     map (h ∘ g) t = map h (map g t) := by
-    cases t <;> simp_all only [map, Functor.map, map, Functor.map, Labeled.map_value_comp, Function.comp_apply, Option.map_map, Row.injEq, Wrapped.mk.injEq, RowF.mk.injEq, and_true, true_and, Record.injEq, Wrapped.mk.injEq, RowF.mk.injEq, and_true, true_and]
-    · apply And.intro
-      · ext a : 1
-        simp_all only [Option.map_eq_some_iff, Function.comp_apply, Array.map_map]
-        rfl
+    cases t
+    · simp_all only [map]
+    · simp_all only [map]
+    · simp_all only [map]
+    · simp_all only [map]
+    · simp_all only [map]
+    · simp_all only [map]
+    · simp_all only [map, Functor.map_map, Row.injEq]
+      rfl
+    · simp_all only [map, Functor.map_map, Record.injEq]
+      rfl
+    · simp_all only [map, NonEmptyArray.map, Function.comp_apply, Functor.map_map, Array.map_map, Forall.injEq, NonEmptyArray.mk.injEq, Array.map_inj_left, and_self, and_true, true_and]
+      apply And.intro
       · rfl
-    · apply And.intro
-      · ext a : 1
-        simp_all only [Option.map_eq_some_iff, Function.comp_apply, Array.map_map]
+      · intro a a_1
         rfl
-      · rfl
-    · simp_all only [NonEmptyArray.map, Array.map_map, Forall.injEq, NonEmptyArray.mk.injEq, Array.map_inj_left, and_self, and_true, true_and]
-      split
-      next x a heq =>
-        simp_all only [true_and, Function.comp_apply]
-        intro a_1 a_2
-        split
-        next x_1 a_1 => simp_all only
-        next x_1 a_1 => simp_all only
-      next x a heq =>
-        simp_all only [Function.comp_apply, true_and]
-        intro a_1 a_2
-        split
-        next x_1 a_1 => simp_all only
-        next x_1 a_1 => simp_all only
-    · simp_all only [NonEmptyArray.map, Function.comp_apply, Array.map_map]
-    · simp_all only [NonEmptyArray.map, Array.map_map, Op.injEq, NonEmptyArray.mk.injEq, Array.map_inj_left, Function.comp_apply, implies_true, and_self]
+    · simp_all only [map, Function.comp_apply]
+    · simp_all only [map, Function.comp_apply, NonEmptyArray.map, Array.map_map]
+    · simp_all only [map, Function.comp_apply, NonEmptyArray.map, Array.map_map, Op.injEq, NonEmptyArray.mk.injEq,
+      Array.map_inj_left, implies_true, and_self]
+    · simp_all only [map]
+    · simp_all only [map, Function.comp_apply]
+    · simp_all only [map]
+    · simp_all only [map, Function.comp_apply]
+    · simp_all only [map, Functor.map_map, Parens.injEq]
+      rfl
+    · simp_all only [map]
 
   @[simp] def map_e {e f α : Type} (g : e → f) : TypeF e α → TypeF f α
     | .Row w => .Row { w with value := RowF.map_e g w.value }
