@@ -260,6 +260,46 @@ inductive BinderF (e binder_e : Type)
   | Error (data : e)
   deriving Repr, BEq
 
+@[simp] theorem sizeOf_Wildcard {e α : Type} [SizeOf e] [SizeOf α] (t) :
+  sizeOf (BinderF.Wildcard (e := e) (binder_e := α) t) = 1 + sizeOf t :=
+  BinderF.Wildcard.sizeOf_spec t
+
+@[simp] theorem sizeOf_Var {e α : Type} [SizeOf e] [SizeOf α] (n) :
+  sizeOf (BinderF.Var (e := e) (binder_e := α) n) = 1 + sizeOf n :=
+  BinderF.Var.sizeOf_spec n
+
+@[simp] theorem sizeOf_Named {e α : Type} [SizeOf e] [SizeOf α] (n t b) :
+  sizeOf (BinderF.Named (e := e) (binder_e := α) n t b) = 1 + sizeOf n + sizeOf t + sizeOf b :=
+  BinderF.Named.sizeOf_spec n t b
+
+@[simp] theorem sizeOf_Constructor {e α : Type} [SizeOf e] [SizeOf α] (n args) :
+  sizeOf (BinderF.Constructor (e := e) (binder_e := α) n args) = 1 + sizeOf n + sizeOf args :=
+  BinderF.Constructor.sizeOf_spec n args
+
+@[simp] theorem sizeOf_Array {e α : Type} [SizeOf e] [SizeOf α] (items) :
+  sizeOf (BinderF.Array (e := e) (binder_e := α) items) = 1 + sizeOf items :=
+  BinderF.Array.sizeOf_spec items
+
+@[simp] theorem sizeOf_Record {e α : Type} [SizeOf e] [SizeOf α] (fields) :
+  sizeOf (BinderF.Record (e := e) (binder_e := α) fields) = 1 + sizeOf fields :=
+  BinderF.Record.sizeOf_spec fields
+
+@[simp] theorem sizeOf_Parens {e α : Type} [SizeOf e] [SizeOf α] (w) :
+  sizeOf (BinderF.Parens (e := e) (binder_e := α) w) = 1 + sizeOf w :=
+  BinderF.Parens.sizeOf_spec w
+
+@[simp] theorem sizeOf_Typed {e α : Type} [SizeOf e] [SizeOf α] (b t t_) :
+  sizeOf (BinderF.Typed (e := e) (binder_e := α) b t t_) = 1 + sizeOf b + sizeOf t + sizeOf t_ :=
+  BinderF.Typed.sizeOf_spec b t t_
+
+@[simp] theorem sizeOf_Op {e α : Type} [SizeOf e] [SizeOf α] (f ops) :
+  sizeOf (BinderF.Op (e := e) (binder_e := α) f ops) = 1 + sizeOf f + sizeOf ops :=
+  BinderF.Op.sizeOf_spec f ops
+
+@[simp] theorem sizeOf_Error {e α : Type} [SizeOf e] [SizeOf α] (d) :
+  sizeOf (BinderF.Error (e := e) (binder_e := α) d) = 1 + sizeOf d :=
+  BinderF.Error.sizeOf_spec d
+
 namespace BinderF
 
 @[always_inline, simp] def map_binder_e (f : binder_e → binder_e') (b : BinderF e binder_e) : BinderF e binder_e' :=
@@ -298,11 +338,95 @@ namespace BinderF
   | Op first ops => Op first ops
   | Error d => Error (f d)
 
+@[simp] theorem map_e_id {e binder_e : Type} (b : BinderF e binder_e) : b.map_e id = b := by
+  cases b <;> simp
+
+@[simp] theorem map_e_comp {e1 e2 e3 binder_e : Type} (f : e1 → e2) (g : e2 → e3) (b : BinderF e1 binder_e) : b.map_e (g ∘ f) = (b.map_e f).map_e g := by
+  cases b <;> simp
+
+@[simp] theorem map_binder_e_id {e binder_e : Type} (b : BinderF e binder_e) : b.map_binder_e id = b := by
+  cases b <;> simp
+
+@[simp] theorem map_binder_e_comp {e binder_e1 binder_e2 binder_e3 : Type} (f : binder_e1 → binder_e2) (g : binder_e2 → binder_e3) (b : BinderF e binder_e1) : b.map_binder_e (g ∘ f) = (b.map_binder_e f).map_binder_e g := by
+  cases b <;> simp [Function.comp]
+
 end BinderF
 
 inductive Binder (e : Type)
   | mk : BinderF e (Binder e) → Binder e
   deriving Repr, BEq
+
+namespace Binder
+
+def map {e1 e2 : Type} (f : e1 → e2) : Binder e1 → Binder e2
+  | .mk (.Wildcard t) => .mk (.Wildcard t)
+  | .mk (.Var n) => .mk (.Var n)
+  | .mk (.Named n t b) => .mk (.Named n t (map f b))
+  | .mk (.Constructor n args) => .mk (.Constructor n (args.map (map f)))
+  | .mk (.Boolean t v) => .mk (.Boolean t v)
+  | .mk (.Char t v) => .mk (.Char t v)
+  | .mk (.NonEmptyString t v) => .mk (.NonEmptyString t v)
+  | .mk (.Int p t v) => .mk (.Int p t v)
+  | .mk (.Number p t v) => .mk (.Number p t v)
+  | .mk (.Array items) => .mk (.Array (items.map (map f)))
+  | .mk (.Record fields) => .mk (.Record (fields.map (Functor.map (map f))))
+  | .mk (.Parens w) => .mk (.Parens (w.map (map f)))
+  | .mk (.Typed b t t_) => .mk (.Typed (map f b) t (t_.map f))
+  | .mk (.Op first ops) => .mk (.Op (map f first) (ops.map (fun x => (x.fst, map f x.snd))))
+  | .mk (.Error d) => .mk (.Error (f d))
+termination_by b
+decreasing_by
+  simp_wf
+  simp only [sizeOf_mk, sizeOf_Named, sizeOf_Constructor, sizeOf_Array, sizeOf_Record, sizeOf_Parens, sizeOf_Typed, sizeOf_Op, sizeOf_Error]
+  -- Use general sizeOf lemmas for containers
+  simp [Delimited.sizeOf_spec, Separated.sizeOf_spec, Wrapped.sizeOf_spec]
+  try omega
+
+theorem map_id {e : Type} (b : Binder e) : b.map id = b := by
+  match b with
+  | .mk bf =>
+    cases bf <;> simp [map, id_map]
+    · exact map_id _
+    · funext x; exact map_id x
+    · funext x; exact map_id x
+    · funext x; simp [Functor.map, map_id x]
+    · exact map_id _
+    · exact map_id _
+    · exact map_id _
+    · funext x; exact map_id x.snd
+termination_by b
+decreasing_by
+  simp_wf
+  simp only [sizeOf_mk, sizeOf_Named, sizeOf_Constructor, sizeOf_Array, sizeOf_Record, sizeOf_Parens, sizeOf_Typed, sizeOf_Op, sizeOf_Error]
+  simp [Delimited.sizeOf_spec, Separated.sizeOf_spec, Wrapped.sizeOf_spec]
+  try omega
+
+theorem map_comp {e1 e2 e3 : Type} (f : e1 → e2) (g : e2 → e3) (b : Binder e1) : b.map (g ∘ f) = (b.map f).map g := by
+  match b with
+  | .mk bf =>
+    cases bf <;> simp [map, comp_map]
+    · exact map_comp f g _
+    · funext x; exact map_comp f g x
+    · funext x; exact map_comp f g x
+    · funext x; simp [Functor.map, map_comp f g x]
+    · exact map_comp f g _
+    · exact map_comp f g _
+    · exact map_comp f g _
+    · funext x; exact map_comp f g x.snd
+termination_by b
+decreasing_by
+  simp_wf
+  simp only [sizeOf_mk, sizeOf_Named, sizeOf_Constructor, sizeOf_Array, sizeOf_Record, sizeOf_Parens, sizeOf_Typed, sizeOf_Op, sizeOf_Error]
+  simp [Delimited.sizeOf_spec, Separated.sizeOf_spec, Wrapped.sizeOf_spec]
+  try omega
+
+instance : Functor Binder where map := map
+instance : LawfulFunctor Binder where
+  map_const := rfl
+  id_map := map_id
+  comp_map := map_comp
+
+end Binder
 
 structure AndToken (α : Type) where
   value : α
@@ -339,26 +463,33 @@ inductive AppSpineF (e expr_e : Type)
 
 namespace AppSpineF
 
-@[always_inline, simp] def map {e α β : Type} (f : α → β) (s : AppSpineF e α) : AppSpineF e β :=
+@[always_inline, simp] def map_expr_e {e α β : Type} (f : α → β) (s : AppSpineF e α) : AppSpineF e β :=
   match s with
   | .Type_ t type_ => .Type_ t type_
   | .Term expr     => .Term (f expr)
 
-@[simp] theorem id_map {e α : Type} (s : AppSpineF e α) : (s.map id) = s := by
-  cases s <;> aesop
+@[simp] theorem map_expr_e_id {e α : Type} (s : AppSpineF e α) : s.map_expr_e id = s := by
+  cases s <;> rfl
 
-@[simp] theorem comp_map {e α β γ : Type} (f : α → β) (g : β → γ) (s : AppSpineF e α) : (s.map (g ∘ f)) = (s.map f |>.map g) := by
-  cases s <;> aesop
+@[simp] theorem map_expr_e_comp {e α β γ : Type} (f : α → β) (g : β → γ) (s : AppSpineF e α) : s.map_expr_e (g ∘ f) = map_expr_e g (s.map_expr_e f) := by
+  cases s <;> rfl
 
-@[simp] theorem map_id_fun {e α : Type} : map (e := e) (id : α → α) = id := by funext s; exact id_map s
-
-@[simp] theorem map_comp_fun {e α β γ : Type} (f : α → β) (g : β → γ) : map (e := e) (g ∘ f) = map g ∘ map f := by funext s; exact comp_map f g s
-
-instance {e : Type} : Functor (AppSpineF e) where map := map
+instance {e : Type} : Functor (AppSpineF e) where map := map_expr_e
 instance {e : Type} : LawfulFunctor (AppSpineF e) where
   map_const := rfl
-  id_map := id_map
-  comp_map := comp_map
+  id_map := map_expr_e_id
+  comp_map := map_expr_e_comp
+
+@[always_inline, simp] def map_e {e1 e2 α : Type} (f : e1 → e2) (s : AppSpineF e1 α) : AppSpineF e2 α :=
+  match s with
+  | .Type_ t type_ => .Type_ t (Functor.map f type_)
+  | .Term expr     => .Term expr
+
+@[simp] theorem map_e_id {e α : Type} (s : AppSpineF e α) : s.map_e id = s := by
+  cases s <;> simp
+
+@[simp] theorem map_e_comp {e1 e2 e3 α : Type} (f : e1 → e2) (g : e2 → e3) (s : AppSpineF e1 α) : s.map_e (g ∘ f) = (s.map_e f).map_e g := by
+  cases s <;> simp
 
 end AppSpineF
 
@@ -505,24 +636,29 @@ structure LambdaF (e expr_e : Type) where
 
 namespace LambdaF
 
-@[always_inline, simp] def map {e α β : Type} (f : α → β) (l : LambdaF e α) : LambdaF e β :=
+@[always_inline, simp] def map_expr_e {e α β : Type} (f : α → β) (l : LambdaF e α) : LambdaF e β :=
   { l with body := f l.body }
 
-@[simp] theorem id_map {e α : Type} (l : LambdaF e α) : (l.map id) = l := by
-  cases l; aesop
+@[simp] theorem map_expr_e_id {e α : Type} (l : LambdaF e α) : l.map_expr_e id = l := by
+  cases l; rfl
 
-@[simp] theorem comp_map {e α β γ : Type} (f : α → β) (g : β → γ) (l : LambdaF e α) : (l.map (g ∘ f)) = (l.map f |>.map g) := by
-  cases l; aesop
+@[simp] theorem map_expr_e_comp {e α β γ : Type} (f : α → β) (g : β → γ) (l : LambdaF e α) : l.map_expr_e (g ∘ f) = map_expr_e g (l.map_expr_e f) := by
+  cases l; rfl
 
-@[simp] theorem map_id_fun {e α : Type} : map (e := e) (id : α → α) = id := by funext l; exact id_map l
-
-@[simp] theorem map_comp_fun {e α β γ : Type} (f : α → β) (g : β → γ) : map (e := e) (g ∘ f) = map g ∘ map f := by funext l; exact comp_map f g l
-
-instance {e : Type} : Functor (LambdaF e) where map := map
+instance {e : Type} : Functor (LambdaF e) where map := map_expr_e
 instance {e : Type} : LawfulFunctor (LambdaF e) where
   map_const := rfl
-  id_map := id_map
-  comp_map := comp_map
+  id_map := map_expr_e_id
+  comp_map := map_expr_e_comp
+
+@[always_inline, simp] def map_e {e1 e2 α : Type} (f : e1 → e2) (l : LambdaF e1 α) : LambdaF e2 α :=
+  { l with binders := l.binders.map (Functor.map f) }
+
+@[simp] theorem map_e_id {e α : Type} (l : LambdaF e α) : l.map_e id = l := by
+  cases l; simp [id_map]
+
+@[simp] theorem map_e_comp {e1 e2 e3 α : Type} (f : e1 → e2) (g : e2 → e3) (l : LambdaF e1 α) : l.map_e (g ∘ f) = (l.map_e f).map_e g := by
+  cases l; simp [comp_map]
 
 end LambdaF
 
@@ -565,24 +701,30 @@ structure PatternGuardF (e expr_e : Type) where
 
 namespace PatternGuardF
 
-@[always_inline, simp] def map {e α β : Type} (f : α → β) (p : PatternGuardF e α) : PatternGuardF e β :=
+@[always_inline, simp] def map_expr_e {e α β : Type} (f : α → β) (p : PatternGuardF e α) : PatternGuardF e β :=
   { p with expr := f p.expr }
 
-@[simp] theorem id_map {e α : Type} (p : PatternGuardF e α) : (p.map id) = p := by
-  cases p; aesop
+@[simp] theorem map_expr_e_id {e α : Type} (p : PatternGuardF e α) : p.map_expr_e id = p := by
+  cases p; rfl
 
-@[simp] theorem comp_map {e α β γ : Type} (f : α → β) (g : β → γ) (p : PatternGuardF e α) : (p.map (g ∘ f)) = (p.map f |>.map g) := by
-  cases p; aesop
+@[simp] theorem map_expr_e_comp {e α β γ : Type} (f : α → β) (g : β → γ) (p : PatternGuardF e α) : p.map_expr_e (g ∘ f) = map_expr_e g (p.map_expr_e f) := by
+  cases p; rfl
 
-@[simp] theorem map_id_fun {e α : Type} : map (e := e) (id : α → α) = id := by funext p; exact id_map p
-
-@[simp] theorem map_comp_fun {e α β γ : Type} (f : α → β) (g : β → γ) : map (e := e) (g ∘ f) = map g ∘ map f := by funext p; exact comp_map f g p
-
-instance {e : Type} : Functor (PatternGuardF e) where map := map
-instance {e : Type} : LawfulFunctor (PatternGuardF e) where
+instance {e : Type} : Functor (PatternGuardF e) where map := map_expr_e
+instance : LawfulFunctor (PatternGuardF e) where
   map_const := rfl
-  id_map := id_map
-  comp_map := comp_map
+  id_map := map_expr_e_id
+  comp_map := map_expr_e_comp
+
+@[always_inline, simp] def map_e {e1 e2 α : Type} (f : e1 → e2) (p : PatternGuardF e1 α) : PatternGuardF e2 α :=
+  { p with binder := p.binder.map (fun (b, t) => (Functor.map f b, t)) }
+
+@[simp] theorem map_e_id {e α : Type} (p : PatternGuardF e α) : p.map_e id = p := by
+  cases p; simp [map_e, id_map]
+
+@[simp] theorem map_e_comp {e1 e2 e3 α : Type} (f : e1 → e2) (g : e2 → e3) (p : PatternGuardF e1 α) : p.map_e (g ∘ f) = (p.map_e f).map_e g := by
+  cases p; simp [map_e, comp_map]
+  apply congr_arg; funext x; simp [comp_map]
 
 end PatternGuardF
 
