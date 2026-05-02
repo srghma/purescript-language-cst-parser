@@ -231,6 +231,23 @@ namespace Wrapped
   change sizeOf v < 1 + sizeOf o + sizeOf v + sizeOf c
   omega
 
+instance {α : Type} : Membership α (Wrapped α) where
+  mem w a := a = w.value
+
+@[simp] theorem mem_def {α : Type} (a : α) (w : Wrapped α) : a ∈ w ↔ a = w.value := Iff.rfl
+
+def attachWith {α : Type} (w : Wrapped α) (P : α → Prop) (H : ∀ a ∈ w, P a) : Wrapped { x // P x } :=
+  { w with value := ⟨w.value, H w.value (mem_def .. |>.mpr rfl)⟩ }
+
+def attach {α : Type} (w : Wrapped α) : Wrapped { x // x ∈ w } :=
+  w.attachWith _ (fun _ => id)
+
+@[simp] theorem sizeOf_attach_elem {α : Type} [SizeOf α] (w : Wrapped α) (x : { x // x ∈ w }) : sizeOf x.val < sizeOf w := by
+  let ⟨a, h⟩ := x
+  rw [mem_def] at h
+  subst h
+  apply sizeOf_value
+
 end Wrapped
 
 @[always_inline] instance : Functor Wrapped where
@@ -294,6 +311,37 @@ namespace Separated
     change sizeOf tail < 1 + sizeOf head + sizeOf tail
     omega
   exact Nat.lt_trans h2 (Nat.lt_trans h1 h3)
+
+instance {α : Type} : Membership α (Separated α) where
+  mem s a := a = s.head ∨ ∃ tok, (tok, a) ∈ s.tail
+
+@[simp] theorem mem_def {α : Type} (a : α) (s : Separated α) :
+    a ∈ s ↔ a = s.head ∨ ∃ tok, (tok, a) ∈ s.tail := Iff.rfl
+
+def attachWith {α : Type} (s : Separated α) (P : α → Prop) (H : ∀ a ∈ s, P a) : Separated { x // P x } :=
+  { head := ⟨s.head, H s.head (mem_def .. |>.mpr (Or.inl rfl))⟩,
+    tail := s.tail.attachWith (fun p => P p.2) (fun p hp => H p.2 (mem_def .. |>.mpr (Or.inr ⟨p.1, hp⟩)))
+            |>.map (fun ⟨p, h⟩ => (p.1, ⟨p.2, h⟩)) }
+
+def attach {α : Type} (s : Separated α) : Separated { x // x ∈ s } :=
+  s.attachWith _ (fun _ => id)
+
+@[simp] theorem sizeOf_attach_elem {α : Type} [SizeOf α] (s : Separated α) (x : { x // x ∈ s }) : sizeOf x.val < sizeOf s := by
+  obtain ⟨val, property⟩ := x
+  simp only [mem_def] at property
+  cases property with
+  | inl h =>
+    subst h
+    exact sizeOf_head s
+  | inr h_1 =>
+    obtain ⟨w, h⟩ := h_1
+    have ⟨i, hi, heq⟩ := Array.mem_iff_getElem.mp h
+    have h_size := sizeOf_tail_elem s i hi
+    -- Extract the tuple element to help omega see the size
+    have h_eq : sizeOf val < sizeOf s.tail[i] := by
+      rw [heq]
+      grind only [= Prod.mk.sizeOf_spec]
+    grind only
 
 end Separated
 
@@ -385,6 +433,8 @@ inductive Delimited (α : Type)
 
 namespace Delimited
 
+@[simp] theorem sizeOf_mk [SizeOf α] (v : Wrapped (Option (Separated α))) : sizeOf (mk v) = 1 + sizeOf v := rfl
+
 @[always_inline, simp] def map (f : α → β) : Delimited α → Delimited β
   | .mk v => .mk { v with value := (Separated.map f) <$> v.value }
 
@@ -396,7 +446,46 @@ namespace Delimited
   cases d with | mk v =>
   simp only [map, Separated.map_comp_fun, Option.map_eq_map, Option.map_map]
 
-@[simp] theorem sizeOf_mk [SizeOf α] (v : Wrapped (Option (Separated α))) : sizeOf (mk v) = 1 + sizeOf v := rfl
+instance {α : Type} : Membership α (Delimited α) where
+  mem d a := match d with | mk w => ∃ s, s ∈ w.value ∧ a ∈ s
+
+@[simp] theorem mem_def {α : Type} (a : α) (d : Delimited α) :
+    a ∈ d ↔ match d with | mk w => ∃ s, s ∈ w.value ∧ a ∈ s := Iff.rfl
+
+def attachWith {α : Type} (d : Delimited α) (P : α → Prop) (H : ∀ a ∈ d, P a) : Delimited { x // P x } :=
+  match d with
+  | mk w => mk { w with value :=
+      match h_val : w.value with
+      | none => none
+      | some s => some (s.attachWith P (fun a ha => H a (by simp_all only [mem_def, Option.mem_def, Option.some.injEq,
+        Separated.mem_def, exists_eq_left', forall_eq_or_imp, forall_exists_index])))
+    }
+
+def attach {α : Type} (d : Delimited α) : Delimited { x // x ∈ d } :=
+  d.attachWith _ (fun _ => id)
+
+@[simp] theorem sizeOf_attach_elem {α : Type} [SizeOf α] (d : Delimited α) (x : { x // x ∈ d }) : sizeOf x.val < sizeOf d := by
+  cases d with | mk v =>
+  obtain ⟨val, property⟩ := x
+  simp only [mem_def] at property
+  obtain ⟨w, h_eq, h_mem⟩ := property
+  have h_v := Wrapped.sizeOf_value v
+  have h_some : sizeOf w < sizeOf (some w) := by
+    simp [Option.some.sizeOf_spec]
+  cases h_mem with
+  | inl h =>
+    subst h
+    have h_w := Separated.sizeOf_head w
+    -- Give omega the explicit chain of inequalities
+    have step1 : sizeOf (some w) ≤ sizeOf v.value := by rw [h_eq]; omega
+    grind only [= mk.sizeOf_spec]
+  | inr h_tail =>
+    obtain ⟨w_1, h⟩ := h_tail
+    have ⟨i, hi, heq⟩ := Array.mem_iff_getElem.mp h
+    have h_w := Separated.sizeOf_tail_get w i hi
+    -- Give omega the explicit chain of inequalities
+    have step1 : sizeOf (some w) ≤ sizeOf v.value := by rw [h_eq]; omega
+    grind only [= mk.sizeOf_spec]
 
 end Delimited
 
@@ -433,6 +522,38 @@ namespace DelimitedNonEmpty
   cases d with | mk v =>
   change sizeOf v < 1 + sizeOf v
   omega
+
+instance {α : Type} : Membership α (DelimitedNonEmpty α) where
+  mem d a := match d with | mk w => a ∈ w.value
+
+@[simp] theorem mem_def {α : Type} (a : α) (d : DelimitedNonEmpty α) :
+    a ∈ d ↔ match d with | mk w => a ∈ w.value := Iff.rfl
+
+@[simp] theorem sizeOf_attach_elem {α : Type} [SizeOf α] (d : DelimitedNonEmpty α) (x : { x // x ∈ d }) : sizeOf x.val < sizeOf d := by
+  cases d with | mk v =>
+  obtain ⟨val, property⟩ := x
+  simp only [mem_def] at property
+  have h_v := Wrapped.sizeOf_value v
+  cases property with
+  | inl h =>
+    subst h
+    have h_w := Separated.sizeOf_head v.value
+    grind only [= mk.sizeOf_spec]
+  | inr h_tail =>
+    obtain ⟨w_1, h⟩ := h_tail
+    have ⟨i, hi, heq⟩ := Array.mem_iff_getElem.mp h
+    have h_w := Separated.sizeOf_tail_get v.value i hi
+    have h_val : sizeOf val = sizeOf (v.value.tail[i]).2 := by simp [heq]
+    grind only [= mk.sizeOf_spec]
+
+@[simp] def attachWith {α : Type} (d : DelimitedNonEmpty α) (P : α → Prop) (H : ∀ a ∈ d, P a) : DelimitedNonEmpty { x // P x } :=
+  match d with
+  | mk w => mk { w with value := w.value.attachWith P (fun a ha => H a (by simp_all only [mem_def, Separated.mem_def,
+    forall_eq_or_imp, forall_exists_index])) }
+
+@[simp] def attach {α : Type} (d : DelimitedNonEmpty α) : DelimitedNonEmpty { x // x ∈ d } :=
+  d.attachWith _ (fun _ => id)
+
 
 end DelimitedNonEmpty
 
