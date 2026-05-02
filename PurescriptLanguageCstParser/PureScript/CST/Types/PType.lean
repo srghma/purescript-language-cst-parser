@@ -248,6 +248,10 @@ def attach {α : Type} (w : Wrapped α) : Wrapped { x // x ∈ w } :=
   subst h
   apply sizeOf_value
 
+ @[simp] theorem attach_map {α β : Type} (w : Wrapped α) (f : α → β) : w.attach.map (fun x => f x.val) = w.map f := rfl
+
+ @[simp] theorem attach_map_val {α : Type} (w : Wrapped α) : w.attach.map (fun x => x.val) = w := rfl
+
 end Wrapped
 
 @[always_inline] instance : Functor Wrapped where
@@ -498,6 +502,29 @@ def attach {α : Type} (d : Delimited α) : Delimited { x // x ∈ d } :=
     -- Give omega the explicit chain of inequalities
     have step1 : sizeOf (some w) ≤ sizeOf v.value := by rw [h_eq]; omega
     grind only [= mk.sizeOf_spec]
+
+@[simp] theorem attach_map {α β : Type} (d : Delimited α) (f : α → β) : d.attach.map (fun x => f x.val) = d.map f := by
+  cases d with | mk v =>
+  simp only [map, attach, attachWith, mk.injEq, Wrapped.mk.injEq, Option.map_eq_map]
+  simp_all only [and_true, true_and]
+  split
+  next heq => simp_all only [Option.map_none]
+  next s heq =>
+    simp_all only [Option.map_some, Separated.map, Option.some.injEq, Separated.mk.injEq]
+    have := Separated.attach_map s f
+    simp_all only [Separated.map, Separated.mk.injEq, Separated.attachWith, Array.map_attachWith,
+      Array.map_map, true_and]
+    obtain ⟨left, right⟩ := this
+    ext i hi₁ hi₂ : 1
+    · simp_all only [Array.size_map, Array.size_attach]
+    · ext : 1
+      · simp_all only [Array.getElem_map, Array.getElem_attach, Function.comp_apply]
+      · simp_all only [Array.getElem_map, Array.getElem_attach, Function.comp_apply]
+
+ @[simp] theorem attach_map_val {α : Type} (d : Delimited α) : d.attach.map (fun x => x.val) = d := by
+   rw [(_ : (fun x : {x // x ∈ d} => x.val) = (fun x => id x.val))]
+   · rw [attach_map, id_map]
+   · rfl
 
 end Delimited
 
