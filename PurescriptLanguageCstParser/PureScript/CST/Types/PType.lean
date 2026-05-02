@@ -343,7 +343,19 @@ def attach {α : Type} (s : Separated α) : Separated { x // x ∈ s } :=
       grind only [= Prod.mk.sizeOf_spec]
     grind only
 
-end Separated
+ @[simp] theorem attach_map {α β : Type} (s : Separated α) (f : α → β) : s.attach.map (fun x => f x.val) = s.map f := by
+   cases s with | mk h t =>
+   simp only [map, attach, attachWith, Array.map_attachWith, Array.map_map, mk.injEq, true_and]
+   apply Array.ext
+   · simp
+   · intro i h1 h2
+     simp only [Array.getElem_map, Array.getElem_attach, Function.comp_apply]
+
+ @[simp] theorem attach_map_val {α : Type} (s : Separated α) : s.attach.map (fun x => x.val) = s := by
+   rw [attach_map s (fun x => x)]
+   simp
+
+ end Separated
 
 @[always_inline] instance : Functor Separated where
   map := Separated.map
@@ -471,7 +483,7 @@ def attach {α : Type} (d : Delimited α) : Delimited { x // x ∈ d } :=
   obtain ⟨w, h_eq, h_mem⟩ := property
   have h_v := Wrapped.sizeOf_value v
   have h_some : sizeOf w < sizeOf (some w) := by
-    simp [Option.some.sizeOf_spec]
+    simp only [Option.some.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one]
   cases h_mem with
   | inl h =>
     subst h
@@ -543,7 +555,7 @@ instance {α : Type} : Membership α (DelimitedNonEmpty α) where
     obtain ⟨w_1, h⟩ := h_tail
     have ⟨i, hi, heq⟩ := Array.mem_iff_getElem.mp h
     have h_w := Separated.sizeOf_tail_get v.value i hi
-    have h_val : sizeOf val = sizeOf (v.value.tail[i]).2 := by simp [heq]
+    have h_val : sizeOf val = sizeOf (v.value.tail[i]).2 := by simp only [heq]
     grind only [= mk.sizeOf_spec]
 
 @[simp] def attachWith {α : Type} (d : DelimitedNonEmpty α) (P : α → Prop) (H : ∀ a ∈ d, P a) : DelimitedNonEmpty { x // P x } :=
@@ -555,7 +567,21 @@ instance {α : Type} : Membership α (DelimitedNonEmpty α) where
   d.attachWith _ (fun _ => id)
 
 
-end DelimitedNonEmpty
+ @[simp] theorem attach_map {α β : Type} (d : DelimitedNonEmpty α) (f : α → β) : d.attach.map (fun x => f x.val) = d.map f := by
+   cases d with | mk v =>
+   simp only [map, attach, attachWith, Separated.map, mk.injEq, Wrapped.mk.injEq,
+     Separated.mk.injEq, and_true, true_and]
+   cases v with | mk o val c =>
+   simp only
+   apply And.intro
+   · rfl
+   · exact (congrArg Separated.tail (Separated.attach_map val f))
+
+ @[simp] theorem attach_map_val {α : Type} (d : DelimitedNonEmpty α) : d.attach.map (fun x => x.val) = d := by
+   rw [attach_map d (fun x => x)]
+   simp
+
+ end DelimitedNonEmpty
 
 instance : Functor DelimitedNonEmpty where
   map := DelimitedNonEmpty.map
