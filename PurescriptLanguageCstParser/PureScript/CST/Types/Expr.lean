@@ -353,58 +353,52 @@ inductive BinderF (e binder_e : Type)
 
 namespace BinderF
 
-@[always_inline, simp] def map_binder_e (f : binder_e → binder_e') (b : BinderF e binder_e) : BinderF e binder_e' :=
+@[always_inline, simp] def map_all {e e' binder_e binder_e' : Type} (f : e → e') (f_binder : binder_e → binder_e') (b : BinderF e binder_e) : BinderF e' binder_e' :=
   match b with
   | Wildcard t => Wildcard t
   | Var n => Var n
-  | Named n t b' => Named n t (f b')
-  | Constructor n args => Constructor n (args.map f)
+  | Named n t b' => Named n t (f_binder b')
+  | Constructor n args => Constructor n (args.map f_binder)
   | Boolean t v => Boolean t v
   | Char t v => Char t v
   | NonEmptyString t v => NonEmptyString t v
   | Int p t v => Int p t v
   | Number p t v => Number p t v
-  | Array items => Array (items.map f)
-  | Record fields => Record (fields.map (Functor.map f))
-  | Parens w => Parens (w.map f)
-  | Typed b_e t t_ => Typed (f b_e) t t_
-  | Op first ops => Op (f first) (ops.map (fun (o, b) => (o, f b)))
-  | Error d => Error d
-
-@[always_inline, simp] def map_e {e e' binder_e : Type} (f : e → e') (b : BinderF e binder_e) : BinderF e' binder_e :=
-  match b with
-  | Wildcard t => Wildcard t
-  | Var n => Var n
-  | Named n t b_e => Named n t b_e
-  | Constructor n args => Constructor n args
-  | Boolean t v => Boolean t v
-  | Char t v => Char t v
-  | NonEmptyString t v => NonEmptyString t v
-  | Int p t v => Int p t v
-  | Number p t v => Number p t v
-  | Array items => Array items
-  | Record fields => Record fields
-  | Parens w => Parens w
-  | Typed b_e t t_e => Typed b_e t (t_e.map f)
-  | Op first ops => Op first ops
+  | Array items => Array (items.map f_binder)
+  | Record fields => Record (fields.map (Functor.map f_binder))
+  | Parens w => Parens (w.map f_binder)
+  | Typed b_e t t_ => Typed (f_binder b_e) t (t_.map f)
+  | Op first ops => Op (f_binder first) (ops.map (fun (o, b) => (o, f_binder b)))
   | Error d => Error (f d)
 
+@[simp] theorem map_all_id {e binder_e : Type} (b : BinderF e binder_e) : b.map_all id id = b := by
+  cases b <;> simp [map_all, Type_.map_id]
+
+@[simp] theorem map_all_comp {e1 e2 e3 binder_e1 binder_e2 binder_e3 : Type}
+  (f1 : e1 → e2) (f2 : e2 → e3) (g1 : binder_e1 → binder_e2) (g2 : binder_e2 → binder_e3)
+  (b : BinderF e1 binder_e1) :
+  b.map_all (f2 ∘ f1) (g2 ∘ g1) = (b.map_all f1 g1).map_all f2 g2 := by
+  cases b <;> simp [map_all, Type_.map_comp, Function.comp_apply, Array.map_map]
+
+@[always_inline, simp] def map_binder_e (f : binder_e → binder_e') (b : BinderF e binder_e) : BinderF e binder_e' :=
+  b.map_all id f
+
+@[always_inline, simp] def map_e {e e' binder_e : Type} (f : e → e') (b : BinderF e binder_e) : BinderF e' binder_e :=
+  b.map_all f id
+
 @[simp] theorem map_e_id {e binder_e : Type} (b : BinderF e binder_e) : b.map_e id = b := by
-  cases b <;> simp
+  rw [map_e, map_all_id]
 
 @[simp] theorem map_e_comp {e1 e2 e3 binder_e : Type} (f : e1 → e2) (g : e2 → e3) (b : BinderF e1 binder_e) : b.map_e (g ∘ f) = (b.map_e f).map_e g := by
-  cases b <;> simp
+  rw [map_e, map_e, map_e, ← map_all_comp f g id id]
+  rfl
 
 @[simp] theorem map_binder_e_id {e binder_e : Type} (b : BinderF e binder_e) : b.map_binder_e id = b := by
-  cases b <;> simp
+  rw [map_binder_e, map_all_id]
 
 @[simp] theorem map_binder_e_comp {e binder_e1 binder_e2 binder_e3 : Type} (f : binder_e1 → binder_e2) (g : binder_e2 → binder_e3) (b : BinderF e binder_e1) : b.map_binder_e (g ∘ f) = (b.map_binder_e f).map_binder_e g := by
-  cases b <;> simp only [map_binder_e, Function.comp_apply, Array.map_map]
-  · simp_all only [Delimited.map, Separated.map_comp_fun, Option.map_eq_map, Option.map_map]
-  · simp_all only [Delimited.map, functor_map_comp, Separated.map_comp_fun, Option.map_eq_map, Option.map_map]
-  · simp_all only [Wrapped.map, Function.comp_apply]
-  · simp_all only [NonEmptyArray.map, Array.map_map, Op.injEq, NonEmptyArray.mk.injEq, Array.map_inj_left,
-    Function.comp_apply, implies_true, and_self]
+  rw [map_binder_e, map_binder_e, map_binder_e, ← map_all_comp id id f g]
+  rfl
 
 end BinderF
 
@@ -420,22 +414,25 @@ namespace Binder
 
 def map {e1 e2 : Type} (f : e1 → e2) (b : Binder e1) : Binder e2 :=
   match b with
-  | .mk (.Wildcard t)         => .mk (.Wildcard t)
-  | .mk (.Var n)              => .mk (.Var n)
-  | .mk (.Named n t b)        => .mk (.Named n t (map f b))
-  | .mk (.Constructor n args) => .mk (.Constructor n (args.map (map f)))
-  | .mk (.Boolean t v)        => .mk (.Boolean t v)
-  | .mk (.Char t v)           => .mk (.Char t v)
-  | .mk (.NonEmptyString t v) => .mk (.NonEmptyString t v)
-  | .mk (.Int p t v) => .mk (.Int p t v)
-  | .mk (.Number p t v) => .mk (.Number p t v)
-  | .mk (.Array items) => .mk (.Array (items.attach.map (fun ⟨b, _⟩ => map f b)))
-  | .mk (.Record fields) => .mk (.Record (fields.attach.map (fun ⟨field, _h_field⟩ =>
-      field.attach.map (fun ⟨b_in, _h_b_in⟩ => map f b_in))))
-  | .mk (.Parens w) => .mk (.Parens (w.attach.map (fun ⟨b, _⟩ => map f b)))
-  | .mk (.Typed b t t_) => .mk (.Typed (map f b) t (t_.map f))
-  | .mk (.Op first ops) => .mk (.Op (map f first) (ops.attach.map (fun ⟨pair, _h_pair_mem⟩ => (pair.1, map f pair.2))))
-  | .mk (.Error d) => .mk (.Error (f d))
+  | .mk v => .mk (
+    match v with
+      | .Wildcard t         => .Wildcard t
+      | .Var n              => .Var n
+      | .Named n t b        => .Named n t (map f b)
+      | .Constructor n args => .Constructor n (args.map (map f))
+      | .Boolean t v        => .Boolean t v
+      | .Char t v           => .Char t v
+      | .NonEmptyString t v => .NonEmptyString t v
+      | .Int p t v          => .Int p t v
+      | .Number p t v       => .Number p t v
+      | .Array items        => .Array (items.attach.map (fun ⟨b, _⟩ => map f b))
+      | .Record fields      => .Record (fields.attach.map (fun ⟨field, _h_field⟩ =>
+                                field.attach.map (fun ⟨b_in, _h_b_in⟩ => map f b_in)))
+      | .Parens w           => .Parens (w.attach.map (fun ⟨b, _⟩ => map f b))
+      | .Typed b t t_       => .Typed (map f b) t (t_.map f)
+      | .Op first ops       => .Op (map f first) (ops.attach.map (fun ⟨pair, _h_pair_mem⟩ => (pair.1, map f pair.2)))
+      | .Error d            => .Error (f d)
+  )
 termination_by b
 decreasing_by
   all_goals simp_wf
@@ -482,52 +479,91 @@ decreasing_by
   match b with
   | .mk bf =>
     match bf with
-    | .Wildcard t => aesop?
-    | .Var n => rfl
+    | .Wildcard t =>
+        simp only [map]
+    | .Var n =>
+        simp only [map]
     | .Named n t b =>
         simp only [map]
         exact congrArg (Binder.mk ∘ BinderF.Named n t) (map_id b)
     | .Constructor n args =>
         simp only [map, Binder.mk.injEq, BinderF.Constructor.injEq, true_and]
-        apply Array.ext; simp
-        intro i h1 _; simp [Array.getElem_map, map_id (args[i]'h1)]
-    | .Boolean t v => rfl
-    | .Char t v => rfl
-    | .NonEmptyString t v => rfl
-    | .Int p t v => rfl
-    | .Number p t v => rfl
+        apply Array.ext
+        · simp
+        · intro i h1 h2
+          simp only [Array.getElem_map]
+          exact map_id _
+    | .Boolean t v => simp only [map]
+    | .Char t v => simp only [map]
+    | .NonEmptyString t v => simp only [map]
+    | .Int p t v => simp only [map]
+    | .Number p t v => simp only [map]
     | .Array items =>
         simp only [map, Binder.mk.injEq]
-        rw [← Delimited.attach_map items (map id), Delimited.attach_map_val]
-        congr 1; ext ⟨x, _⟩; exact map_id x
-    | .Record fields =>
-        simp only [map, Binder.mk.injEq]
-        rw [← Delimited.attach_map fields (RecordLabeled.map (map id)), Delimited.attach_map_val]
-        congr 1; ext ⟨field, _⟩
-        cases field with
-        | Pun n => rfl
-        | Field l sep v =>
-            simp only [RecordLabeled.attach, RecordLabeled.map]
-            rw [← RecordLabeled.attach_map (RecordLabeled.Field l sep v) (map id)]
-            simp [RecordLabeled.attach, RecordLabeled.attach_map, map_id v]
+        congr 1
+        have h : (fun x : { x // x ∈ items } => map id x.val) = (fun x => x.val) := by
+          funext ⟨x, _⟩; exact map_id x
+        rw [show items.attach.map (fun x => map id x.val) = items.attach.map (fun x => x.val) from by rw [h]]
+        exact Delimited.attach_map_val items
+
     | .Parens w =>
         simp only [map, Binder.mk.injEq]
-        rw [← Wrapped.attach_map w (map id), Wrapped.attach_map_val]
-        congr 1; ext ⟨x, _⟩; exact map_id x
+        congr 1
+        have h : (fun x : { x // x ∈ w } => map id x.val) = (fun x => x.val) := by
+          funext ⟨x, _⟩; exact map_id x
+        rw [show w.attach.map (fun x => map id x.val) = w.attach.map (fun x => x.val) from by rw [h]]
+        exact Wrapped.attach_map_val w
+
+    | .Record fields =>
+        simp only [map, Binder.mk.injEq]
+        congr 1
+        have h : (fun x : { x // x ∈ fields } =>
+            x.val.attach.map (fun b_in : { b_in // b_in ∈ x.val } => map id b_in.val))
+            = (fun x => x.val) := by
+          funext ⟨field, _⟩
+          have h2 : (fun b_in : { b_in // b_in ∈ field } => map id b_in.val) = (fun b_in => b_in.val) := by
+            funext ⟨x, _⟩; exact map_id x
+          rw [h2]
+          exact RecordLabeled.attach_map_val field
+        rw [show fields.attach.map _ = fields.attach.map (fun x => x.val) from by rw [h]]
+        exact Delimited.attach_map_val fields
     | .Typed b t t_ =>
-        simp only [map, Binder.mk.injEq, BinderF.Typed.injEq, true_and, and_true]
-        exact map_id b
+        simp only [map, Binder.mk.injEq, BinderF.Typed.injEq, true_and]
+        exact ⟨map_id b, Type_.map_id t_⟩
     | .Op first ops =>
         simp only [map, Binder.mk.injEq, BinderF.Op.injEq]
         refine ⟨map_id first, ?_⟩
-        rw [← NonEmptyArray.attach_map ops (fun p => (p.1, map id p.2))]
-        · simp [NonEmptyArray.attach_map_val]
-          apply NonEmptyArray.ext; apply Array.ext; simp
-          intro i h1 _
-          simp [Array.getElem_map, map_id]
-        · intro ⟨op, b⟩ _; exact (op, map id b)
-    | .Error d => rfl
+        cases ops with | mk op_head op_tail =>
+        obtain ⟨fst, snd⟩ := op_head
+        apply NonEmptyArray.ext
+        · exact Prod.ext rfl (map_id snd)
+        · dsimp [NonEmptyArray.attach, NonEmptyArray.map]
+          simp only [Array.map_map]
+          have h : (fun x : { x // x ∈ op_tail } => (x.val.fst, map id x.val.snd)) = (fun x => x.val) := by
+            funext ⟨⟨op, b⟩, _⟩; exact Prod.ext rfl (map_id b)
+          rw [h]
+          exact Array.attach_map_val op_tail
+    | .Error d =>
+        simp only [map]
+        simp_all only [id_eq]
 termination_by b
+decreasing_by
+  all_goals simp_wf
+  all_goals
+    try simp [sizeOf_mk, sizeOf_Wildcard, sizeOf_Var, sizeOf_Named, sizeOf_Constructor, sizeOf_Array, sizeOf_Record, sizeOf_Parens, sizeOf_Typed, sizeOf_Op, sizeOf_Error, Prod.mk.sizeOf_spec]
+    try have := Array.sizeOf_lt_of_mem (by assumption)
+    try have := Array.sizeOf_getElem _ _ (by assumption)
+    try have := NonEmptyArray.sizeOf_lt_of_mem (by assumption)
+    try have := Delimited.sizeOf_attach_elem _ ⟨_, by assumption⟩
+    try have := RecordLabeled.sizeOf_attach_elem _ ⟨_, by assumption⟩
+    try have := Wrapped.sizeOf_attach_elem _ ⟨_, by assumption⟩
+    dsimp at *
+    omega
+
+
+
+
+
 -- @[simp] theorem map_comp {e1 e2 e3 : Type} (f : e1 → e2) (g : e2 → e3) (b : Binder e1) :
 --     b.map (g ∘ f) = (b.map f).map g := by
 --   match b with
