@@ -1,3 +1,5 @@
+module
+
 -- `generate_fixed` – derives a fixed-point `inductive` (or `structure`) from a
 -- functor-shaped inductive by declaring the recursive-position substitutions
 -- explicitly with `fill`.
@@ -18,6 +20,7 @@
 --   end_generate_fixed_mutual
 
 import Lean
+public import Lean.Elab.Command
 
 section
 open Lean Meta Elab Command Term
@@ -37,7 +40,7 @@ syntax "fill" ident "with" term : fillClause
 -- Syntax-level identifier substitution
 --------------------------------------------------------------------------------
 
-private partial def substIdent (paramName : Name) (replacement : Syntax) : Syntax → Syntax
+meta partial def substIdent (paramName : Name) (replacement : Syntax) : Syntax → Syntax
   | s@(.ident _ _ n _) =>
       let n' := n.eraseMacroScopes
       if n' == paramName || (n'.isStr && n'.getString! == paramName.toString) then
@@ -55,7 +58,7 @@ private partial def substIdent (paramName : Name) (replacement : Syntax) : Synta
 /-- For each constructor of `functorName`, peel its Pi-type, skip the
     `iv.numParams` type-parameter binders, delab each field type, apply
     the `fills` substitutions, and return bracketedBinder syntax. -/
-private def buildCtors (functorName : Name) (fills : Array (Name × Syntax))
+meta def buildCtors (functorName : Name) (fills : Array (Name × Syntax)) (resultType : Term)
     : CommandElabM (Array (TSyntax ``Lean.Parser.Command.ctor)) := do
   let env ← getEnv
   let some ci := env.find? functorName
@@ -85,9 +88,9 @@ private def buildCtors (functorName : Name) (fills : Array (Name × Syntax))
       let ctorIdent := mkIdent ctorName.eraseMacroScopes.getString!.toName
       let ctor ←
         if fieldBinders.isEmpty then
-          `(Lean.Parser.Command.ctor| | $ctorIdent:ident)
+          `(Lean.Parser.Command.ctor| | $ctorIdent:ident : $resultType)
         else
-          `(Lean.Parser.Command.ctor| | $ctorIdent:ident $fieldBinders*)
+          `(Lean.Parser.Command.ctor| | $ctorIdent:ident $fieldBinders* : $resultType)
       result := result.push ctor
     | _ => throwError "generate_fixed: expected constructor info for '{ctorName}'"
   return result
@@ -97,7 +100,7 @@ private def buildCtors (functorName : Name) (fills : Array (Name × Syntax))
 --------------------------------------------------------------------------------
 
 /-- Like `buildCtors` but produces `structField` syntax (no parentheses). -/
-private def buildStructFields (functorName : Name) (fills : Array (Name × Syntax))
+meta def buildStructFields (functorName : Name) (fills : Array (Name × Syntax))
     : CommandElabM (Array Syntax) := do
   let env ← getEnv
   let some ci := env.find? functorName
@@ -129,16 +132,34 @@ private def buildStructFields (functorName : Name) (fills : Array (Name × Synta
 --------------------------------------------------------------------------------
 -- Elaborator
 --------------------------------------------------------------------------------
-private def generateFixedSyntax (stx : Syntax) : CommandElabM Syntax := do
-  -- stx is a `generate_fixed` command.
-  -- The structure of the syntax is defined in the `elab` command below.
-  let kw          := stx[1]
-  let fixName     : Ident := ⟨stx[2]⟩
+
+meta def getParamIds (params : Array Syntax) : Array Ident := Id.run do
+  let mut ids : Array Ident := #[]
+  for p in params do
+    if p.isIdent then
+      ids := ids.push ⟨p⟩
+    else
+      let args := p.getArgs
+      if args.size >= 2 then
+        let names := args[1]!
+        for n in names.getArgs do
+          if n.isIdent then
+            ids := ids.push ⟨n⟩
+          else if n.getArgs.size > 0 && n[0]!.isIdent then
+            ids := ids.push ⟨n[0]!⟩
+  return ids
+
+meta def generateFixedSyntax (stx : Syntax) : CommandElabM Syntax := do
+  -- stx is a `generate_fixed` command with modifiers.
+  -- [0]: mods, [1]: "generate_fixed", [2]: kw, [3]: name, [4]: params, [5]: "from", [6]: functor, [7]: fills, [8]: deriving?
+  let mods : TSyntax ``Lean.Parser.Command.declModifiers := ⟨stx[0]⟩
+  let kw          := stx[2]
+  let fixName     : Ident := ⟨stx[3]⟩
   let params      : Array (TSyntax [`ident, `Lean.Parser.Term.hole, `Lean.Parser.Term.bracketedBinder]) :=
-    stx[3].getArgs.map TSyntax.mk
-  let functorName : Ident := ⟨stx[5]⟩
-  let fillClauses := stx[6].getArgs
-  let deriving?   := stx[7]
+    stx[4].getArgs.map TSyntax.mk
+  let functorName : Ident := ⟨stx[6]⟩
+  let fillClauses := stx[7].getArgs
+  let deriving?   := stx[8]
 
   let fills : Array (Name × Syntax) ← fillClauses.mapM fun fc => do
     -- fc is a `fillClause` node: "fill" ident "with" term
@@ -154,31 +175,35 @@ private def generateFixedSyntax (stx : Syntax) : CommandElabM Syntax := do
 
   match kwStr with
   | "inductive" => do
-      let ctors ← buildCtors fName fills
+      let paramNames := getParamIds params
+      let resultType : Term ← `(term| $fixName $paramNames*)
+      let ctors ← buildCtors fName fills resultType
       if deriving?.isNone then
-        `(command| inductive $fixName $[$params]* : Type where $[$ctors]*)
+        `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]*)
       else
         let ds := deriving?[0] -- the `deriving` clause
         let ids : Array (TSyntax `Lean.Parser.Command.derivingClass) :=
             ds[1].getSepArgs.map fun id => ⟨Syntax.node .none ``Lean.Parser.Command.derivingClass #[id]⟩
-        `(command| inductive $fixName $[$params]* : Type where $[$ctors]* deriving $[$ids],*)
+        `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]* deriving $[$ids],*)
   | "structure" => do
       let sfields ← buildStructFields fName fills
       let sfieldsCast : Array (TSyntax [`Lean.Parser.Command.structExplicitBinder, `Lean.Parser.Command.structImplicitBinder, `Lean.Parser.Command.structInstBinder, `Lean.Parser.Command.structSimpleBinder]) :=
         sfields.map TSyntax.mk
       if deriving?.isNone then
-        `(command| structure $fixName $[$params]* where $[$sfieldsCast]*)
+        `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]*)
       else
         let ds := deriving?[0] -- the `deriving` clause
         let ids : Array (TSyntax `Lean.Parser.Command.derivingClass) :=
             ds[1].getSepArgs.map fun id => ⟨Syntax.node .none ``Lean.Parser.Command.derivingClass #[id]⟩
-        `(command| structure $fixName $[$params]* where $[$sfieldsCast]* deriving $[$ids],*)
+        `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]* deriving $[$ids],*)
   | _ => throwError "generate_fixed: expected 'inductive' or 'structure'"
 
-elab "generate_fixed" _kw:fixed_kind _fixName:ident _params:bracketedBinder*
-     "from" _functorName:ident _fills:fillClause*
-     _deriving?:(ppLine "deriving " Lean.Parser.Command.derivingClass,+)? : command => do
-  let stx ← getRef
+syntax (name := generateFixed) declModifiers "generate_fixed" fixed_kind ident bracketedBinder*
+     "from" ident fillClause*
+     (ppLine "deriving " Lean.Parser.Command.derivingClass,+)? : command
+
+@[command_elab generateFixed]
+public meta def elabGenerateFixed : CommandElab := fun stx => do
   let cmd ← generateFixedSyntax stx
   trace[Meta.debug] "generate_fixed expansion:\n{cmd}"
   elabCommand cmd
@@ -186,12 +211,12 @@ elab "generate_fixed" _kw:fixed_kind _fixName:ident _params:bracketedBinder*
 elab "generate_fixed_mutual" cmds:command+ "end_generate_fixed_mutual" : command => do
   let mut expanded : Array (TSyntax `command) := #[]
   for cmd in cmds do
-    match cmd with
-    | `(generate_fixed $_kw $_fixName $[$_params]* from $_functorName $[$_fills]* $[deriving $_ids,*]?) =>
-        let exp ← generateFixedSyntax cmd
-        expanded := expanded.push ⟨exp⟩
-    | _ =>
-        expanded := expanded.push ⟨cmd⟩
+    let cmd ← liftMacroM <| expandMacros cmd
+    if cmd.getKind == ``generateFixed then
+      let exp ← generateFixedSyntax cmd
+      expanded := expanded.push ⟨exp⟩
+    else
+      expanded := expanded.push ⟨cmd⟩
   let mutualCmd ← `(command| mutual $[$expanded]* end)
   trace[Meta.debug] "generate_fixed_mutual expansion:\n{mutualCmd}"
   elabCommand mutualCmd

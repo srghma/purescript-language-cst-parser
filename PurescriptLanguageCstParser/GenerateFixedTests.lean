@@ -1,3 +1,5 @@
+module
+
 import PurescriptLanguageCstParser.GenerateFixed
 
 -- ---------------------------------------------------------------------------
@@ -15,24 +17,27 @@ generate_fixed inductive Tree (a : Type) from TreeF
   fill r with (Tree a)
   deriving Repr, BEq
 
--- Expected:  Tree : Type → Type
---            Tree.leaf : {a} → a → Tree a
---            Tree.node : {a} → Tree a → Tree a → Tree a
-/-- info: Tree : Type → Type -/
+/--
+info:
+private inductive Test1.Tree : Type → Type
+number of parameters: 1
+constructors:
+_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.leaf : {a : Type} → a → Tree a
+_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.node : {a : Type} → Tree a → Tree a → Tree a
+ -/
 #guard_msgs in
-#check @Tree
-/-- info: @Tree.leaf : {a : Type} → a → Tree a -/
-#guard_msgs in
-#check @Tree.leaf
-/-- info: @Tree.node : {a : Type} → Tree a → Tree a → Tree a -/
-#guard_msgs in
-#check @Tree.node
+#print Tree
 
 def exTree : Tree Nat :=
   .node (.leaf 1) (.node (.leaf 2) (.leaf 3))
 
 /--
-info: Test1.Tree.node (Test1.Tree.leaf 1) (Test1.Tree.node (Test1.Tree.leaf 2) (Test1.Tree.leaf 3))
+info:
+_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.node
+  (_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.leaf 1)
+  (_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.node
+    (_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.leaf 2)
+    (_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test1.Tree.leaf 3))
 -/
 #guard_msgs in
 #eval exTree
@@ -40,31 +45,34 @@ info: Test1.Tree.node (Test1.Tree.leaf 1) (Test1.Tree.node (Test1.Tree.leaf 2) (
 end Test1
 
 -- ---------------------------------------------------------------------------
--- Test 2 : Expr  (no payload params, recursive param `r`)
+-- Test 2 : Expr (recursive param `e`, with `Int` literals)
 -- ---------------------------------------------------------------------------
 
 namespace Test2
 
-inductive ExprF (r : Type) where
-  | num (n : Int)
-  | add (l r_ : r)
-  | mul (l r_ : r)
-  | neg (e : r)
+inductive ExprF (e : Type) where
+  | num (val : Int)
+  | add (l r : e)
+  | mul (l r : e)
+  | neg (inner : e)
   deriving Repr, BEq
 
-generate_fixed inductive Expr from ExprF
-  fill r with Expr
+public generate_fixed inductive Expr from ExprF
+  fill e with Expr
   deriving Repr, BEq
 
-/-- info: Expr : Type -/
+/--
+info:
+inductive Test2.Expr : Type
+number of parameters: 0
+constructors:
+Test2.Expr.num : Int → Expr
+Test2.Expr.add : Expr → Expr → Expr
+Test2.Expr.mul : Expr → Expr → Expr
+Test2.Expr.neg : Expr → Expr
+ -/
 #guard_msgs in
-#check @Expr
-/-- info: Expr.num : Int → Expr -/
-#guard_msgs in
-#check @Expr.num
-/-- info: Expr.add : Expr → Expr → Expr -/
-#guard_msgs in
-#check @Expr.add
+#print Expr
 
 def exExpr : Expr :=
   .add (.num 1) (.mul (.num 2) (.neg (.num 3)))
@@ -78,52 +86,54 @@ info: Test2.Expr.add (Test2.Expr.num 1) (Test2.Expr.mul (Test2.Expr.num 2) (Test
 end Test2
 
 -- ---------------------------------------------------------------------------
--- Test 3 : Mutual recursion  (Expr2F / StmtF)
+-- Test 3 : Mutual recursion (Expr and Stmt)
 -- ---------------------------------------------------------------------------
 
 namespace Test3
 
-inductive Expr2F (e s : Type) where
-  | num  (n : Int)
-  | add  (l r : e)
-  | ifE  (cond : s) (thenB elseB : e)
+inductive ExprF (e s : Type) where
+  | num (val : Int)
+  | add (l r : e)
+  | ifE (cond : s) (thenE elseE : e)
   deriving Repr, BEq
 
 inductive StmtF (e s : Type) where
-  | assign (var : String) (rhs : e)
-  | seq    (a b : s)
+  | assign (name : String) (val : e)
+  | seq (l r : s)
   | whileS (cond : e) (body : s)
   deriving Repr, BEq
 
--- Inside `mutual … end`, each `generate_fixed` elaborates to a bare
--- `inductive` which Lean's mutual-block elaborator threads correctly.
 generate_fixed_mutual
-  generate_fixed inductive Expr from Expr2F
+  public generate_fixed inductive Expr from ExprF
     fill e with Expr
     fill s with Stmt
 
-  generate_fixed inductive Stmt from StmtF
+  public generate_fixed inductive Stmt from StmtF
     fill e with Expr
     fill s with Stmt
 end_generate_fixed_mutual
-/-- info:
+
+/--
+info:
 inductive Test3.Expr : Type
 number of parameters: 0
 constructors:
 Test3.Expr.num : Int → Expr
 Test3.Expr.add : Expr → Expr → Expr
 Test3.Expr.ifE : Stmt → Expr → Expr → Expr
- -/
+-/
 #guard_msgs in
 #print Expr
-/-- info:
+
+/--
+info:
 inductive Test3.Stmt : Type
 number of parameters: 0
 constructors:
 Test3.Stmt.assign : String → Expr → Stmt
 Test3.Stmt.seq : Stmt → Stmt → Stmt
 Test3.Stmt.whileS : Expr → Stmt → Stmt
- -/
+-/
 #guard_msgs in
 #print Stmt
 
@@ -164,13 +174,26 @@ inductive RoseTreeF (a r : Type) where
 
 -- `fill r with (RoseTree a)` rewrites `List r` → `List (RoseTree a)` because
 -- `substIdent` walks into the `List r` application and replaces the `r` leaf.
-generate_fixed inductive RoseTree (a : Type) from RoseTreeF
+public generate_fixed inductive RoseTree (a : Type) from RoseTreeF
   fill r with (RoseTree a)
   deriving Repr, BEq
 
-/-- info: RoseTree : Type → Type -/
+-- or can
+-- public generate_fixed inductive RoseTree (x : Type) from RoseTreeF
+--   fill r with (RoseTree x)
+--   fill a with x
+--   deriving Repr, BEq
+
+
+/--
+info:
+inductive Test4.RoseTree : Type → Type
+number of parameters: 1
+constructors:
+Test4.RoseTree.node : {a : Type} → a → List (RoseTree a) → RoseTree a
+ -/
 #guard_msgs in
-#check @RoseTree
+#print RoseTree
 
 def exRoseTree : RoseTree String :=
   .node "root" [.node "child1" [], .node "child2" [.node "grandchild" []]]
@@ -205,14 +228,16 @@ structure MetadataF (error e m : Type) where
   deriving Repr, BEq
 
 generate_fixed_mutual
-  generate_fixed inductive Expr (error : Type) from ExprF
+  public generate_fixed structure Metadata (error : Type) from MetadataF
     fill e with (Expr error)
     fill m with (Metadata error)
+    -- fill error with error
     deriving Repr, BEq
 
-  generate_fixed structure Metadata (error : Type) from MetadataF
+  public generate_fixed inductive Expr (error : Type) from ExprF
     fill e with (Expr error)
     fill m with (Metadata error)
+    -- fill error with error
     deriving Repr, BEq
 end_generate_fixed_mutual
 
@@ -227,6 +252,7 @@ Test5.Expr.err : {error : Type} → error → Expr error
  -/
 #guard_msgs in
 #print Expr
+
 /-- info:
 structure Test5.Metadata (error : Type) : Type
 number of parameters: 1
@@ -263,10 +289,10 @@ inductive ExprF (e : Type) where
   deriving Repr
 
 generate_fixed_mutual
-  generate_fixed inductive Expr from ExprF
+  public generate_fixed inductive Expr from ExprF -- also test that can export
     fill e with Expr
 
-  inductive ExprTag where
+  public inductive ExprTag where -- also test that can export
     | lit
     | bin
 end_generate_fixed_mutual
