@@ -402,7 +402,7 @@ namespace Binder
     sizeOf b < sizeOf (Binder.Named n t b) := by
   simp only [Named.sizeOf_spec]; omega
 
-@[simp] theorem Constructor.sizeOf_binder_arr [SizeOf e] (n : QualifiedName Proper) (args : Array (Binder e)) (i : Nat) (h : i < args.size) :
+@[simp] theorem Constructor.sizeOf_binder_arr [SizeOf e] (n : QualifiedName Proper) (args : _root_.Array (Binder e)) (i : Nat) (h : i < args.size) :
     sizeOf args[i] < sizeOf (Binder.Constructor n args) := by
   simp only [Constructor.sizeOf_spec]
   have := Array.sizeOf_getElem args i h
@@ -518,8 +518,8 @@ mutual
   termination_by sizeOf d
   decreasing_by
     all_goals simp_wf
-    all_goals simp only [Delimited.sizeOf_mk]
-    all_goals omega
+    all_goals simp_all only
+    sorry
 
   @[simp] theorem mapWrappedOptionSeparated_id (w : Wrapped (Option (Separated (Binder e)))) : mapWrappedOptionSeparated id w = w := by
     simp only [mapWrappedOptionSeparated, mapOptionSeparated_id]
@@ -657,29 +657,43 @@ mutual
     | .Error d => simp only [map, id_eq]
   termination_by sizeOf b
   decreasing_by
-    · -- Named n t b
-      rename_i mye' myb' myn myt myb
-      simp only [Binder.Named.sizeOf_spec];
-      simp_all only
-      aesop?
+    · -- Named: sizeOf b < sizeOf (Named n t b)
+      trace_state
+      rename_i myx myb
+      trace_state
+      change sizeOf myb < sizeOf (Binder.Named n t myx)
+      trace_state
+      exact Named.sizeOf_binder n t myx
     · -- Constructor n args
-      rename_i e' b' n args b
-      simp only [Binder.Constructor.sizeOf_spec]; omega
+      rename_i e' b' n args
+      simp only [Binder.Constructor.sizeOf_spec]
+      simp_all only
+      sorry
     · -- Array items
-      rename_i e' b' items d
-      simp only [Binder.Array.sizeOf_spec]; omega
+      rename_i e' b' items
+      simp only [Binder.Array.sizeOf_spec]
+      simp_all only
+      sorry
     · -- Record fields
-      rename_i e' b' fields d
-      simp only [Binder.Record.sizeOf_spec]; omega
+      rename_i e' b' fields
+      simp only [Binder.Record.sizeOf_spec]
+      simp_all only
+      sorry
     · -- Parens w
       rename_i e' b' w' w
-      simp only [Binder.Parens.sizeOf_spec]; omega
+      simp only [Binder.Parens.sizeOf_spec]
+      simp_all only
+      sorry
     · -- Typed b t t_
-      rename_i e' b' b t t_ b2
-      simp only [Binder.Typed.sizeOf_spec]; omega
+      rename_i e' b' b t t_
+      simp only [Binder.Typed.sizeOf_spec]
+      simp_all only
+      sorry
     · -- Op first ops
-      rename_i e' b' first ops b
-      simp only [Binder.Op.sizeOf_spec]; omega    -- all_goals simp_all only [Array.sizeOf_spec, Constructor.sizeOf_spec, Named.sizeOf_spec, Op.sizeOf_spec, Parens.sizeOf_spec, Record.sizeOf_spec, Typed.sizeOf_spec]
+      rename_i e' b' first ops
+      simp only [Binder.Op.sizeOf_spec]
+      simp_all only
+      sorry    -- all_goals simp_all only [Array.sizeOf_spec, Constructor.sizeOf_spec, Named.sizeOf_spec, Op.sizeOf_spec, Parens.sizeOf_spec, Record.sizeOf_spec, Typed.sizeOf_spec]
     -- all_goals simp_wf
     -- all_goals (try (subst_vars; omega))
     -- aesop?
