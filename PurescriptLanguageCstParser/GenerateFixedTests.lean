@@ -13,7 +13,16 @@ inductive TreeF (a r : Type) where
   | node (left right : r)
   deriving Repr, BEq
 
-generate_fixed inductive Tree (a : Type) from TreeF
+/--
+info:
+generate_fixed expansion:
+inductive Tree (a : Type) : Type where
+  | leaf (val : a) : Tree a
+  | node (left : (Tree a)) (right : (Tree a)) : Tree a
+  deriving Repr, BEq
+-/
+#guard_msgs in
+generate_fixed? inductive Tree (a : Type) from TreeF
   fill r with (Tree a)
   deriving Repr, BEq
 
@@ -57,7 +66,17 @@ inductive ExprF (e : Type) where
   | neg (inner : e)
   deriving Repr, BEq
 
-public generate_fixed inductive Expr from ExprF
+/--
+info:
+generate_fixed expansion:
+public inductive Expr : Type where
+  | num (val : Int) : Expr
+  | add (l : Expr) (r : Expr) : Expr
+  | mul (l : Expr) (r : Expr) : Expr
+  | neg (inner : Expr) : Expr
+  deriving Repr, BEq-/
+#guard_msgs in
+public generate_fixed? inductive Expr from ExprF
   fill e with Expr
   deriving Repr, BEq
 
@@ -103,7 +122,22 @@ inductive StmtF (e s : Type) where
   | whileS (cond : e) (body : s)
   deriving Repr, BEq
 
-generate_fixed_mutual
+/--
+info:
+generate_fixed_mutual expansion:
+mutual
+  public inductive Expr : Type where
+    | num (val : Int) : Expr
+    | add (l : Expr) (r : Expr) : Expr
+    | ifE (cond : Stmt) (thenE : Expr) (elseE : Expr) : Expr
+  public inductive Stmt : Type where
+    | assign (name : String) (val : Expr) : Stmt
+    | seq (l : Stmt) (r : Stmt) : Stmt
+    | whileS (cond : Expr) (body : Stmt) : Stmt
+end
+-/
+#guard_msgs in
+generate_fixed_mutual?
   public generate_fixed inductive Expr from ExprF
     fill e with Expr
     fill s with Stmt
@@ -174,7 +208,15 @@ inductive RoseTreeF (a r : Type) where
 
 -- `fill r with (RoseTree a)` rewrites `List r` → `List (RoseTree a)` because
 -- `substIdent` walks into the `List r` application and replaces the `r` leaf.
-public generate_fixed inductive RoseTree (a : Type) from RoseTreeF
+/--
+info:
+generate_fixed expansion:
+public inductive RoseTree (a : Type) : Type where
+  | node (val : a) (children : List (RoseTree a)) : RoseTree a
+  deriving Repr, BEq
+-/
+#guard_msgs in
+public generate_fixed? inductive RoseTree (a : Type) from RoseTreeF
   fill r with (RoseTree a)
   deriving Repr, BEq
 
@@ -227,7 +269,27 @@ structure MetadataF (error e m : Type) where
   hasError : Option error
   deriving Repr, BEq
 
-generate_fixed_mutual
+set_option linter.unusedVariables false in -- FIXME: why error is not used?
+
+/--
+info:
+generate_fixed_mutual expansion:
+mutual
+  public structure Metadata (error : Type) where
+    expr : Expr error
+    meta_ : Metadata error
+    hasError : Option error
+    deriving Repr, BEq
+  public inductive Expr (error : Type) : Type where
+    | num (n : Int) : Expr error
+    | add (l : Expr error) (r : Expr error) : Expr error
+    | metadata (meta_ : Metadata error) : Expr error
+    | err (e : error) : Expr error
+    deriving Repr, BEq
+end
+-/
+#guard_msgs in
+generate_fixed_mutual?
   public generate_fixed structure Metadata (error : Type) from MetadataF
     fill e with (Expr error)
     fill m with (Metadata error)
@@ -288,7 +350,19 @@ inductive ExprF (e : Type) where
   | add (l r : e)
   deriving Repr
 
-generate_fixed_mutual
+/--
+info: generate_fixed_mutual expansion:
+mutual
+  public inductive Expr : Type where
+    | num (n : Int) : Expr
+    | add (l : Expr) (r : Expr) : Expr
+  public inductive ExprTag where
+    | lit
+    | bin
+end
+-/
+#guard_msgs in
+generate_fixed_mutual?
   public generate_fixed inductive Expr from ExprF -- also test that can export
     fill e with Expr
 
@@ -320,3 +394,55 @@ Test6.ExprTag.bin : ExprTag
 #print ExprTag
 
 end Test6
+
+-- ---------------------------------------------------------------------------
+-- Test 7 : Debug output with `?`
+-- ---------------------------------------------------------------------------
+
+namespace Test7
+
+inductive SimpleF (e : Type) where
+  | baseS
+  | recS (inner : e)
+  deriving Repr
+
+/--
+info: generate_fixed expansion:
+inductive Simple : Type where
+  | baseS : Simple
+  | recS (inner : Simple) : Simple
+-/
+#guard_msgs in
+generate_fixed? inductive Simple from SimpleF
+  fill e with Simple
+
+inductive ExprF (e s : Type) where
+  | baseE
+  | recE (inner : s)
+
+inductive StmtF (e s : Type) where
+  | baseSt
+  | recSt (inner : e)
+
+/--
+info: generate_fixed_mutual expansion:
+mutual
+  public inductive Expr : Type where
+    | baseE : Expr
+    | recE (inner : Stmt) : Expr
+  public inductive Stmt : Type where
+    | baseSt : Stmt
+    | recSt (inner : Expr) : Stmt
+end
+-/
+#guard_msgs in
+generate_fixed_mutual?
+  public generate_fixed inductive Expr from ExprF
+    fill e with Expr
+    fill s with Stmt
+  public generate_fixed inductive Stmt from StmtF
+    fill e with Expr
+    fill s with Stmt
+end_generate_fixed_mutual
+
+end Test7

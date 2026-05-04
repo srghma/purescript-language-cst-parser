@@ -1,4 +1,6 @@
--- import PurescriptLanguageCstParser.PureScript.CST.Types
+module
+
+import PurescriptLanguageCstParser.PureScript.CST.Types
 -- import PurescriptLanguageCstParser.PureScript.CST.Traversal
 import PurescriptLanguageCstParser.GenerateFixed
 import PurescriptLanguageCstParser.GenerateFixedTests

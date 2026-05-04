@@ -4,7 +4,15 @@ import NonEmpty.CorrectByConstruction.Array
 import NonEmpty.String
 import Aesop
 public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
+meta import PurescriptLanguageCstParser.GenerateFixed
 
+@[simp] theorem Array.sizeOf_attach_elem {α : Type} [SizeOf α] (arr : Array α) (x : { x // x ∈ arr }) :
+    sizeOf x.val < sizeOf arr := by
+  let ⟨val, h⟩ := x
+  obtain ⟨i, hi, hval⟩ := Array.mem_iff_getElem.mp h
+  subst hval
+  have h1 := Array.sizeOf_getElem arr i hi
+  omega
 
 namespace PureScript.CST.Types
 
@@ -233,11 +241,12 @@ namespace RecordLabeled
   cases r <;> rfl
 
 theorem map_id' {α : Type} (r : RecordLabeled α) (f : α → α) (hf : ∀ x, f x = x) : r.map f = r := by
-  cases r <;> simp [map, hf]
+  cases r <;> simp only [map, Field.injEq, true_and]
+  simp_all only
 
 theorem map_comp' {α β γ : Type} (r : RecordLabeled α) (f : α → β) (g : β → γ) (h : α → γ) (hh : ∀ x, h x = g (f x)) :
   r.map h = (r.map f).map g := by
-  cases r <;> simp [map, hh]
+  cases r <;> simp only [map, hh]
 
 @[simp] theorem functor_map_id {α : Type} : map (id : α → α) = id := by funext e; exact id_map e
 
@@ -262,7 +271,7 @@ instance {α : Type} : Membership α (RecordLabeled α) where
     (x : { x // x ∈ r }) : sizeOf x.val < sizeOf r := by
   obtain ⟨val, property⟩ := x
   cases r with
-  | Pun n => exact absurd property (by simp [mem_def])
+  | Pun n => exact absurd property (by simp only [mem_def, not_false_eq_true])
   | Field l sep v =>
     simp only [mem_def] at property
     subst property
@@ -272,7 +281,7 @@ instance {α : Type} : Membership α (RecordLabeled α) where
 def attach {α : Type} (r : RecordLabeled α) : RecordLabeled { x // x ∈ r } :=
   match r with
   | .Pun n     => .Pun n
-  | .Field l sep v => .Field l sep ⟨v, by simp [mem_def]⟩
+  | .Field l sep v => .Field l sep ⟨v, by simp only [mem_def]⟩
 
 @[simp] theorem attach_map {α β : Type} (r : RecordLabeled α) (f : α → β) :
     r.attach.map (fun x => f x.val) = r.map f := by
@@ -281,7 +290,6 @@ def attach {α : Type} (r : RecordLabeled α) : RecordLabeled { x // x ∈ r } :
 @[simp] theorem attach_map_val {α : Type} (r : RecordLabeled α) :
     r.attach.map (fun x => x.val) = r := by
   cases r <;> rfl
-
 
 end RecordLabeled
 
@@ -311,46 +319,6 @@ inductive BinderF (e binder_e : Type)
   | Error (data : e)
   deriving Repr, BEq
 
-@[simp] theorem sizeOf_Wildcard {e α : Type} [SizeOf e] [SizeOf α] (t) :
-  sizeOf (BinderF.Wildcard (e := e) (binder_e := α) t) = 1 + sizeOf t :=
-  BinderF.Wildcard.sizeOf_spec t
-
-@[simp] theorem sizeOf_Var {e α : Type} [SizeOf e] [SizeOf α] (n) :
-  sizeOf (BinderF.Var (e := e) (binder_e := α) n) = 1 + sizeOf n :=
-  BinderF.Var.sizeOf_spec n
-
-@[simp] theorem sizeOf_Named {e α : Type} [SizeOf e] [SizeOf α] (n t b) :
-  sizeOf (BinderF.Named (e := e) (binder_e := α) n t b) = 1 + sizeOf n + sizeOf t + sizeOf b :=
-  BinderF.Named.sizeOf_spec n t b
-
-@[simp] theorem sizeOf_Constructor {e α : Type} [SizeOf e] [SizeOf α] (n args) :
-  sizeOf (BinderF.Constructor (e := e) (binder_e := α) n args) = 1 + sizeOf n + sizeOf args :=
-  BinderF.Constructor.sizeOf_spec n args
-
-@[simp] theorem sizeOf_Array {e α : Type} [SizeOf e] [SizeOf α] (items) :
-  sizeOf (BinderF.Array (e := e) (binder_e := α) items) = 1 + sizeOf items :=
-  BinderF.Array.sizeOf_spec items
-
-@[simp] theorem sizeOf_Record {e α : Type} [SizeOf e] [SizeOf α] (fields) :
-  sizeOf (BinderF.Record (e := e) (binder_e := α) fields) = 1 + sizeOf fields :=
-  BinderF.Record.sizeOf_spec fields
-
-@[simp] theorem sizeOf_Parens {e α : Type} [SizeOf e] [SizeOf α] (w) :
-  sizeOf (BinderF.Parens (e := e) (binder_e := α) w) = 1 + sizeOf w :=
-  BinderF.Parens.sizeOf_spec w
-
-@[simp] theorem sizeOf_Typed {e α : Type} [SizeOf e] [SizeOf α] (b t t_) :
-  sizeOf (BinderF.Typed (e := e) (binder_e := α) b t t_) = 1 + sizeOf b + sizeOf t + sizeOf t_ :=
-  BinderF.Typed.sizeOf_spec b t t_
-
-@[simp] theorem sizeOf_Op {e α : Type} [SizeOf e] [SizeOf α] (f ops) :
-  sizeOf (BinderF.Op (e := e) (binder_e := α) f ops) = 1 + sizeOf f + sizeOf ops :=
-  BinderF.Op.sizeOf_spec f ops
-
-@[simp] theorem sizeOf_Error {e α : Type} [SizeOf e] [SizeOf α] (d) :
-  sizeOf (BinderF.Error (e := e) (binder_e := α) d) = 1 + sizeOf d :=
-  BinderF.Error.sizeOf_spec d
-
 namespace BinderF
 
 @[always_inline, simp] def map_all {e e' binder_e binder_e' : Type} (f : e → e') (f_binder : binder_e → binder_e') (b : BinderF e binder_e) : BinderF e' binder_e' :=
@@ -372,13 +340,13 @@ namespace BinderF
   | Error d => Error (f d)
 
 @[simp] theorem map_all_id {e binder_e : Type} (b : BinderF e binder_e) : b.map_all id id = b := by
-  cases b <;> simp [map_all, Type_.map_id]
+  cases b <;> simp only [Array.map_id_fun, Array.map_id_fun', Delimited.map, NonEmptyArray.map, Separated.map_id_fun, Type_.map_id, Wrapped.map, functor_map_id, id_eq, id_map, map_all]
 
 @[simp] theorem map_all_comp {e1 e2 e3 binder_e1 binder_e2 binder_e3 : Type}
   (f1 : e1 → e2) (f2 : e2 → e3) (g1 : binder_e1 → binder_e2) (g2 : binder_e2 → binder_e3)
   (b : BinderF e1 binder_e1) :
   b.map_all (f2 ∘ f1) (g2 ∘ g1) = (b.map_all f1 g1).map_all f2 g2 := by
-  cases b <;> simp [map_all, Type_.map_comp, Function.comp_apply, Array.map_map]
+  cases b <;> simp only [map_all, Function.comp_apply, Array.map_map, Delimited.map, Separated.map_comp_fun, Option.map_eq_map, Option.map_map, functor_map_comp, Wrapped.map, Type_.map_comp, NonEmptyArray.map, Op.injEq, NonEmptyArray.mk.injEq, Array.map_inj_left, implies_true, and_self]
 
 @[always_inline, simp] def map_binder_e (f : binder_e → binder_e') (b : BinderF e binder_e) : BinderF e binder_e' :=
   b.map_all id f
@@ -402,351 +370,403 @@ namespace BinderF
 
 end BinderF
 
-inductive Binder (e : Type)
-  | mk : BinderF e (Binder e) → Binder e
+/--
+info:
+generate_fixed expansion:
+inductive Binder (e : Type) : Type where
+  | Wildcard (token : SourceToken) : Binder e
+  | Var (name : Name Ident) : Binder e
+  | Named (name : Name Ident) (token : SourceToken) (binder : (Binder e)) : Binder e
+  | Constructor (name : QualifiedName Proper) (args : Array (Binder e)) : Binder e
+  | Boolean (token : SourceToken) (val : Bool) : Binder e
+  | Char (token : SourceToken) (val : Char) : Binder e
+  | NonEmptyString (token : SourceToken) (val : NonEmptyString) : Binder e
+  | Int (prefix_ : Option SourceToken) (token : SourceToken) (val : IntValue) : Binder e
+  | Number (prefix_ : Option SourceToken) (token : SourceToken) (val : Float) : Binder e
+  | Array (items : Delimited (Binder e)) : Binder e
+  | Record (fields : Delimited (RecordLabeled (Binder e))) : Binder e
+  | Parens (wrapped : Wrapped (Binder e)) : Binder e
+  | Typed (binder : (Binder e)) (token : SourceToken) (type_ : Type_ e) : Binder e
+  | Op (first : (Binder e)) (ops : NonEmptyArray (QualifiedName Operator × (Binder e))) : Binder e
+  | Error (data : e) : Binder e
   deriving Repr, BEq
-
-@[simp] theorem sizeOf_mk {e : Type} [SizeOf e] (bf : BinderF e (Binder e)) :
-  sizeOf (Binder.mk bf) = 1 + sizeOf bf :=
-  Binder.mk.sizeOf_spec bf
+-/
+#guard_msgs in
+generate_fixed? inductive Binder (e : Type) from BinderF
+  fill binder_e with (Binder e)
+  deriving Repr, BEq
 
 namespace Binder
 
-def map {e1 e2 : Type} (f : e1 → e2) (b : Binder e1) : Binder e2 :=
-  match b with
-  | .mk v => .mk (
-    match v with
+@[simp] theorem Named.sizeOf_binder [SizeOf e] (n : Name Ident) (t : SourceToken) (b : Binder e) :
+    sizeOf b < sizeOf (Binder.Named n t b) := by
+  simp only [Named.sizeOf_spec]; omega
+
+@[simp] theorem Constructor.sizeOf_binder_arr [SizeOf e] (n : QualifiedName Proper) (args : Array (Binder e)) (i : Nat) (h : i < args.size) :
+    sizeOf args[i] < sizeOf (Binder.Constructor n args) := by
+  simp only [Constructor.sizeOf_spec]
+  have := Array.sizeOf_getElem args i h
+  omega
+
+@[simp] theorem Typed.sizeOf_binder [SizeOf e] (b : Binder e) (t : SourceToken) (t_ : Type_ e) :
+    sizeOf b < sizeOf (Binder.Typed b t t_) := by
+  simp only [Typed.sizeOf_spec]; omega
+
+@[simp] theorem Op.sizeOf_first [SizeOf e] (first : Binder e) (ops : NonEmptyArray (QualifiedName Operator × Binder e)) :
+    sizeOf first < sizeOf (Op first ops) := by
+  simp only [Op.sizeOf_spec]; omega
+
+mutual
+  def map {e1 e2 : Type} (f : e1 → e2) (b : Binder e1) : Binder e2 :=
+    match b with
       | .Wildcard t         => .Wildcard t
       | .Var n              => .Var n
       | .Named n t b        => .Named n t (map f b)
-      | .Constructor n args => .Constructor n (args.map (map f))
+      | .Constructor n args => .Constructor n (args.attach.map (fun ⟨b, _hmem⟩ => map f b))
       | .Boolean t v        => .Boolean t v
       | .Char t v           => .Char t v
       | .NonEmptyString t v => .NonEmptyString t v
       | .Int p t v          => .Int p t v
       | .Number p t v       => .Number p t v
-      | .Array items        => .Array (items.attach.map (fun ⟨b, _⟩ => map f b))
-      | .Record fields      => .Record (fields.attach.map (fun ⟨field, _h_field⟩ =>
-                                field.attach.map (fun ⟨b_in, _h_b_in⟩ => map f b_in)))
-      | .Parens w           => .Parens (w.attach.map (fun ⟨b, _⟩ => map f b))
+      | .Array items        => .Array (mapDelimited f items)
+      | .Record fields      => .Record (mapDelimitedRecordLabeled f fields)
+      | .Parens w           => .Parens (mapWrapped f w)
       | .Typed b t t_       => .Typed (map f b) t (t_.map f)
-      | .Op first ops       => .Op (map f first) (ops.attach.map (fun ⟨pair, _h_pair_mem⟩ => (pair.1, map f pair.2)))
+      | .Op first ops       => .Op (map f first) (ops.attach.map (fun ⟨⟨n, b⟩, _hmem⟩ => (n, map f b)))
       | .Error d            => .Error (f d)
-  )
-termination_by b
-decreasing_by
-  all_goals simp_wf
-  all_goals simp +arith only
-  -- Constructor element
-  · rename_i x hmem
-    obtain ⟨i, hi, rfl⟩ := Array.mem_iff_getElem.mp hmem
-    have h1 : sizeOf (args[i]'hi) < sizeOf args := Array.sizeOf_getElem args i hi
-    have h2 : sizeOf (Binder.mk (BinderF.Constructor n args)) = 1 + 1 + sizeOf n + sizeOf args := by
-      rw [Binder.mk.sizeOf_spec, BinderF.Constructor.sizeOf_spec]
-      simp_all only [Array.getElem_mem, Array.sizeOf_getElem, Nat.reduceAdd]
-      grind only
-    omega
-  -- Array element
-  · rename_i hmem
-    have h1 : sizeOf b < sizeOf items := Delimited.sizeOf_attach_elem items ⟨b, hmem⟩
-    have h2 : sizeOf (Binder.mk (BinderF.Array items)) = 1 + 1 + sizeOf items := by
-      rw [Binder.mk.sizeOf_spec, BinderF.Array.sizeOf_spec]
-      grind only
-    omega
-  -- Record element
-  · -- b_in ∈ field, field ∈ fields
-    have h1 : sizeOf field < sizeOf fields :=
-      Delimited.sizeOf_attach_elem fields ⟨field, _h_field⟩
-    have h2 : sizeOf b_in < sizeOf field :=
-      RecordLabeled.sizeOf_attach_elem field ⟨b_in, _h_b_in⟩
-    omega
-  -- Parens
-  · have hmem : b ∈ w := by assumption
-    have h1 : sizeOf b < sizeOf w := Wrapped.sizeOf_attach_elem w ⟨b, hmem⟩
-    have h2 : sizeOf (Binder.mk (BinderF.Parens w)) = 1 + 1 + sizeOf w := by
-      rw [Binder.mk.sizeOf_spec, BinderF.Parens.sizeOf_spec]
-      simp_all only [Wrapped.mem_def, Wrapped.sizeOf_value, Nat.reduceAdd]
-      subst hmem
-      grind only
-    omega
-  -- Op element
-  · have h1 : sizeOf pair < sizeOf ops := NonEmptyArray.sizeOf_lt_of_mem _h_pair_mem
-    have h2 : sizeOf pair.2 < sizeOf pair := by
-      match pair with | (op, binder) => simp [Prod.mk.sizeOf_spec]; omega
-    omega
+  termination_by sizeOf b
+  decreasing_by
+    all_goals (simp_all only [Array.sizeOf_spec, Constructor.sizeOf_spec, Named.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one, Op.sizeOf_spec, Parens.sizeOf_spec, Record.sizeOf_spec, Typed.sizeOf_spec]; simp_wf; try omega)
+    · have := Array.sizeOf_lt_of_mem _hmem; omega
+    · have := NonEmptyArray.sizeOf_lt_of_mem _hmem; simp only [Prod.mk.sizeOf_spec, gt_iff_lt] at *; omega
 
-@[simp] theorem map_id {e : Type} (b : Binder e) : b.map id = b := by
-  match b with
-  | .mk bf =>
-    match bf with
-    | .Wildcard t =>
-        simp only [map]
-    | .Var n =>
-        simp only [map]
-    | .Named n t b =>
-        simp only [map]
-        exact congrArg (Binder.mk ∘ BinderF.Named n t) (map_id b)
-    | .Constructor n args =>
-        simp only [map, Binder.mk.injEq, BinderF.Constructor.injEq, true_and]
-        apply Array.ext
-        · simp
-        · intro i h1 h2
-          simp only [Array.getElem_map]
-          exact map_id _
+  def mapDelimited {e1 e2 : Type} (f : e1 → e2) (d : Delimited (Binder e1)) : Delimited (Binder e2) :=
+    match d with
+    | .mk w => .mk (mapWrappedOptionSeparated f w)
+  termination_by sizeOf d
+  decreasing_by all_goals (simp_all only [Delimited.mk.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  def mapWrappedOptionSeparated {e1 e2 : Type} (f : e1 → e2) (w : Wrapped (Option (Separated (Binder e1)))) : Wrapped (Option (Separated (Binder e2))) :=
+    { w with value := mapOptionSeparated f w.value }
+  termination_by sizeOf w
+  decreasing_by all_goals (simp_all only [Wrapped.sizeOf_value])
+
+  def mapOptionSeparated {e1 e2 : Type} (f : e1 → e2) (o : Option (Separated (Binder e1))) : Option (Separated (Binder e2)) :=
+    match o with
+    | none => none
+    | some s => some (mapSeparated f s)
+  termination_by sizeOf o
+  decreasing_by all_goals (simp_all only [Option.some.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  def mapSeparated {e1 e2 : Type} (f : e1 → e2) (s : Separated (Binder e1)) : Separated (Binder e2) :=
+    { head := map f s.head, tail := s.tail.attach.map (fun ⟨⟨tok, b⟩, _hmem⟩ => (tok, map f b)) }
+  termination_by sizeOf s
+  decreasing_by
+    simp_wf
+    obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
+    have : b = s.tail[i].2 := by simp only [h]
+    rw [this]
+    exact s.sizeOf_tail_get i hi
+
+  def mapDelimitedRecordLabeled {e1 e2 : Type} (f : e1 → e2) (fields : Delimited (RecordLabeled (Binder e1))) : Delimited (RecordLabeled (Binder e2)) :=
+    match fields with
+    | .mk w => .mk (mapWrappedOptionSeparatedRecordLabeled f w)
+  termination_by sizeOf fields
+  decreasing_by all_goals (simp_all only [Delimited.mk.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  def mapWrappedOptionSeparatedRecordLabeled {e1 e2 : Type} (f : e1 → e2) (w : Wrapped (Option (Separated (RecordLabeled (Binder e1))))) : Wrapped (Option (Separated (RecordLabeled (Binder e2)))) :=
+    { w with value := mapOptionSeparatedRecordLabeled f w.value }
+  termination_by sizeOf w
+  decreasing_by all_goals (simp_all only [Wrapped.sizeOf_value])
+
+  def mapOptionSeparatedRecordLabeled {e1 e2 : Type} (f : e1 → e2) (o : Option (Separated (RecordLabeled (Binder e1)))) : Option (Separated (RecordLabeled (Binder e2))) :=
+    match o with
+    | none => none
+    | some s => some (mapSeparatedRecordLabeled f s)
+  termination_by sizeOf o
+  decreasing_by all_goals (simp_all only [Option.some.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  def mapSeparatedRecordLabeled {e1 e2 : Type} (f : e1 → e2) (s : Separated (RecordLabeled (Binder e1))) : Separated (RecordLabeled (Binder e2)) :=
+    { head := mapRecordLabeled f s.head, tail := s.tail.attach.map (fun ⟨⟨tok, rl⟩, _hmem⟩ => (tok, mapRecordLabeled f rl)) }
+  termination_by sizeOf s
+  decreasing_by
+    simp_wf
+    obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
+    have : rl = (s.tail[i]).2 := by simp only [h]
+    rw [this]
+    exact s.sizeOf_tail_get i hi
+
+  def mapRecordLabeled {e1 e2 : Type} (f : e1 → e2) (rl : RecordLabeled (Binder e1)) : RecordLabeled (Binder e2) :=
+    match rl with
+    | .Pun n => .Pun n
+    | .Field l sep v => .Field l sep (map f v)
+  termination_by sizeOf rl
+  decreasing_by
+    simp_wf
+    grind only
+
+  def mapWrapped {e1 e2 : Type} (f : e1 → e2) (w : Wrapped (Binder e1)) : Wrapped (Binder e2) :=
+    { w with value := map f w.value }
+  termination_by sizeOf w
+  decreasing_by all_goals (simp_all only [Wrapped.sizeOf_value])
+end
+
+
+mutual
+  @[simp] theorem mapDelimited_id (d : Delimited (Binder e)) : mapDelimited id d = d := by
+    match d with | .mk w => simp only [mapDelimited, mapWrappedOptionSeparated_id]
+  termination_by sizeOf d
+  decreasing_by
+    all_goals simp_wf
+    all_goals simp only [Delimited.sizeOf_mk]
+    all_goals omega
+
+  @[simp] theorem mapWrappedOptionSeparated_id (w : Wrapped (Option (Separated (Binder e)))) : mapWrappedOptionSeparated id w = w := by
+    simp only [mapWrappedOptionSeparated, mapOptionSeparated_id]
+  termination_by sizeOf w
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapOptionSeparated_id (o : Option (Separated (Binder e))) : mapOptionSeparated id o = o := by
+    match o with
+    | none => simp only [mapOptionSeparated]
+    | some s => simp only [mapOptionSeparated, mapSeparated_id]
+  termination_by sizeOf o
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapSeparated_id (s : Separated (Binder e)) : mapSeparated id s = s := by
+    simp only [mapSeparated, map_id]
+    congr
+    ext i hi₁ hi₂ : 1
+    · simp_all only [Array.size_map, Array.size_attach]
+    · ext : 1
+      · simp_all only [Array.getElem_map, Array.getElem_attach]
+      · simp_all only [Array.getElem_map, Array.getElem_attach]
+  termination_by sizeOf s
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapWrapped_id (w : Wrapped (Binder e)) : mapWrapped id w = w := by
+    simp only [mapWrapped, map_id]
+  termination_by sizeOf w
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapDelimitedRecordLabeled_id (d : Delimited (RecordLabeled (Binder e))) : mapDelimitedRecordLabeled id d = d := by
+    match d with | .mk w => simp only [mapDelimitedRecordLabeled, mapWrappedOptionSeparatedRecordLabeled_id]
+  termination_by sizeOf d
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapWrappedOptionSeparatedRecordLabeled_id (w : Wrapped (Option (Separated (RecordLabeled (Binder e))))) : mapWrappedOptionSeparatedRecordLabeled id w = w := by
+    simp only [mapWrappedOptionSeparatedRecordLabeled, mapOptionSeparatedRecordLabeled_id]
+  termination_by sizeOf w
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapOptionSeparatedRecordLabeled_id (o : Option (Separated (RecordLabeled (Binder e)))) : mapOptionSeparatedRecordLabeled id o = o := by
+    match o with
+    | none => simp only [mapOptionSeparatedRecordLabeled]
+    | some s => simp only [mapOptionSeparatedRecordLabeled, mapSeparatedRecordLabeled_id]
+  termination_by sizeOf o
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapSeparatedRecordLabeled_id (s : Separated (RecordLabeled (Binder e))) : mapSeparatedRecordLabeled id s = s := by
+    simp only [mapSeparatedRecordLabeled, mapRecordLabeled_id]
+    congr
+    ext i hi₁ hi₂ : 1
+    · simp_all only [Array.size_map, Array.size_attach]
+    · ext : 1
+      · simp_all only [Array.getElem_map, Array.getElem_attach]
+      · simp_all only [Array.getElem_map, Array.getElem_attach]
+  termination_by sizeOf s
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem mapRecordLabeled_id (rl : RecordLabeled (Binder e)) : mapRecordLabeled id rl = rl := by
+    match rl with
+    | .Pun n => simp only [mapRecordLabeled]
+    | .Field l sep v => simp only [mapRecordLabeled, map_id]
+  termination_by sizeOf rl
+  decreasing_by
+    all_goals simp_wf
+    simp_all only
+    all_goals simp_wf
+    all_goals (try (subst_vars; omega))
+    all_goals (try (cases d; omega))
+    sorry
+
+  @[simp] theorem map_id (b : Binder e) : map id b = b := by
+    match b with
+    | .Wildcard t => simp only [map]
+    | .Var n => simp only [map]
+    | .Named n t b => simp only [map_id]
+    | .Constructor n args => simp only [map_id]
     | .Boolean t v => simp only [map]
     | .Char t v => simp only [map]
     | .NonEmptyString t v => simp only [map]
     | .Int p t v => simp only [map]
     | .Number p t v => simp only [map]
-    | .Array items =>
-        simp only [map, Binder.mk.injEq]
-        congr 1
-        have h : (fun x : { x // x ∈ items } => map id x.val) = (fun x => x.val) := by
-          funext ⟨x, _⟩; exact map_id x
-        rw [show items.attach.map (fun x => map id x.val) = items.attach.map (fun x => x.val) from by rw [h]]
-        exact Delimited.attach_map_val items
-
-    | .Parens w =>
-        simp only [map, Binder.mk.injEq]
-        congr 1
-        have h : (fun x : { x // x ∈ w } => map id x.val) = (fun x => x.val) := by
-          funext ⟨x, _⟩; exact map_id x
-        rw [show w.attach.map (fun x => map id x.val) = w.attach.map (fun x => x.val) from by rw [h]]
-        exact Wrapped.attach_map_val w
-
-    | .Record fields =>
-        simp only [map, Binder.mk.injEq]
-        congr 1
-        have h : (fun x : { x // x ∈ fields } =>
-            x.val.attach.map (fun b_in : { b_in // b_in ∈ x.val } => map id b_in.val))
-            = (fun x => x.val) := by
-          funext ⟨field, _⟩
-          have h2 : (fun b_in : { b_in // b_in ∈ field } => map id b_in.val) = (fun b_in => b_in.val) := by
-            funext ⟨x, _⟩; exact map_id x
-          rw [h2]
-          exact RecordLabeled.attach_map_val field
-        rw [show fields.attach.map _ = fields.attach.map (fun x => x.val) from by rw [h]]
-        exact Delimited.attach_map_val fields
-    | .Typed b t t_ =>
-        simp only [map, Binder.mk.injEq, BinderF.Typed.injEq, true_and]
-        exact ⟨map_id b, Type_.map_id t_⟩
-    | .Op first ops =>
-        simp only [map, Binder.mk.injEq, BinderF.Op.injEq]
-        refine ⟨map_id first, ?_⟩
-        cases ops with | mk op_head op_tail =>
-        obtain ⟨fst, snd⟩ := op_head
-        apply NonEmptyArray.ext
-        · exact Prod.ext rfl (map_id snd)
-        · dsimp [NonEmptyArray.attach, NonEmptyArray.map]
-          simp only [Array.map_map]
-          have h : (fun x : { x // x ∈ op_tail } => (x.val.fst, map id x.val.snd)) = (fun x => x.val) := by
-            funext ⟨⟨op, b⟩, _⟩; exact Prod.ext rfl (map_id b)
-          rw [h]
-          exact Array.attach_map_val op_tail
-    | .Error d =>
-        simp only [map]
-        simp_all only [id_eq]
-termination_by b
-decreasing_by
-  all_goals simp_wf
-  all_goals
-    try simp [sizeOf_mk, sizeOf_Wildcard, sizeOf_Var, sizeOf_Named, sizeOf_Constructor, sizeOf_Array, sizeOf_Record, sizeOf_Parens, sizeOf_Typed, sizeOf_Op, sizeOf_Error, Prod.mk.sizeOf_spec]
-    try have := Array.sizeOf_lt_of_mem (by assumption)
-    try have := Array.sizeOf_getElem _ _ (by assumption)
-    try have := NonEmptyArray.sizeOf_lt_of_mem (by assumption)
-    try have := Delimited.sizeOf_attach_elem _ ⟨_, by assumption⟩
-    try have := RecordLabeled.sizeOf_attach_elem _ ⟨_, by assumption⟩
-    try have := Wrapped.sizeOf_attach_elem _ ⟨_, by assumption⟩
-    dsimp at *
-    omega
+    | .Array items => simp only [map, mapDelimited_id]
+    | .Record fields => simp only [map, mapDelimitedRecordLabeled_id]
+    | .Parens w => simp only [map, mapWrapped_id]
+    | .Typed b t t_ => simp only [map_id];
+    | .Op first ops => simp only [map_id]
+    | .Error d => simp only [map, id_eq]
+  termination_by sizeOf b
+  decreasing_by
+    · -- Named n t b
+      rename_i mye' myb' myn myt myb
+      simp only [Binder.Named.sizeOf_spec];
+      simp_all only
+      aesop?
+    · -- Constructor n args
+      rename_i e' b' n args b
+      simp only [Binder.Constructor.sizeOf_spec]; omega
+    · -- Array items
+      rename_i e' b' items d
+      simp only [Binder.Array.sizeOf_spec]; omega
+    · -- Record fields
+      rename_i e' b' fields d
+      simp only [Binder.Record.sizeOf_spec]; omega
+    · -- Parens w
+      rename_i e' b' w' w
+      simp only [Binder.Parens.sizeOf_spec]; omega
+    · -- Typed b t t_
+      rename_i e' b' b t t_ b2
+      simp only [Binder.Typed.sizeOf_spec]; omega
+    · -- Op first ops
+      rename_i e' b' first ops b
+      simp only [Binder.Op.sizeOf_spec]; omega    -- all_goals simp_all only [Array.sizeOf_spec, Constructor.sizeOf_spec, Named.sizeOf_spec, Op.sizeOf_spec, Parens.sizeOf_spec, Record.sizeOf_spec, Typed.sizeOf_spec]
+    -- all_goals simp_wf
+    -- all_goals (try (subst_vars; omega))
+    -- aesop?
+    -- · have := Array.sizeOf_lt_of_mem _hmem; omega
+    -- · have := NonEmptyArray.sizeOf_lt_of_mem _hmem; simp only [Prod.mk.sizeOf_spec, gt_iff_lt] at *; omega
+end
 
 
+-- mutual
+--   @[simp] theorem map_comp (f : e1 → e2) (g : e2 → e3) (b : Binder e1) : map (g ∘ f) b = map g (map f b) := by
+--     match b with
+--     | .Wildcard t => rfl
+--     | .Var n => rfl
+--     | .Named n t b => simp only [map, map_comp]
+--     | .Constructor n args =>
+--         simp only [map, Array.map_map, Array.attach_map]
+--         congr; ext b' h; exact map_comp f g b'
+--     | .Boolean t v => rfl
+--     | .Char t v => rfl
+--     | .NonEmptyString t v => rfl
+--     | .Int p t v => rfl
+--     | .Number p t v => rfl
+--     | .Array items => simp only [map, mapDelimited_comp]
+--     | .Record fields => simp only [map, mapDelimitedRecordLabeled_comp]
+--     | .Parens w => simp only [map, mapWrapped_comp]
+--     | .Typed b t t_ => simp only [map, map_comp]; rw [Type_.map_comp]; rfl
+--     | .Op first ops =>
+--         simp only [map, map_comp]
+--         congr
+--         simp only [NonEmptyArray.map_map, NonEmptyArray.attach_map]
+--         congr; ext ⟨n, b'⟩ h; exact map_comp f g b'
+--     | .Error d => rfl
 
+--   @[simp] theorem mapDelimited_comp (f : e1 → e2) (g : e2 → e3) (d : Delimited (Binder e1)) : mapDelimited (g ∘ f) d = mapDelimited g (mapDelimited f d) := by
+--     match d with | .mk w => simp only [mapDelimited, mapWrappedOptionSeparated_comp]
 
+--   @[simp] theorem mapWrappedOptionSeparated_comp (f : e1 → e2) (g : e2 → e3) (w : Wrapped (Option (Separated (Binder e1)))) : mapWrappedOptionSeparated (g ∘ f) w = mapWrappedOptionSeparated g (mapWrappedOptionSeparated f w) := by
+--     simp only [mapWrappedOptionSeparated, mapOptionSeparated_comp]; cases w; rfl
 
--- @[simp] theorem map_comp {e1 e2 e3 : Type} (f : e1 → e2) (g : e2 → e3) (b : Binder e1) :
---     b.map (g ∘ f) = (b.map f).map g := by
---   match b with
---   | .mk bf =>
---     cases bf with
---     | Wildcard t => rfl
---     | Var n => rfl
---     | Named n t b =>
---         simp only [map]
---         exact congrArg (Binder.mk ∘ BinderF.Named n t) (map_comp f g b)
---     | Constructor n args =>
---         simp only [map, Binder.mk.injEq, BinderF.Constructor.injEq, true_and, Array.map_map]
---         congr 1; ext i; exact map_comp f g _
---     | Boolean t v => rfl
---     | Char t v => rfl
---     | NonEmptyString t v => rfl
---     | Int p t v => rfl
---     | Number p t v => rfl
---     | Array items =>
---         simp only [map, Binder.mk.injEq]
---         conv_lhs => rw [show items.map (map (g ∘ f)) = (items.map (map f)).map (map g) from ?_]
---         · rfl
---         · apply Delimited.comp_map' items
---           intro x; exact map_comp f g x
---     | Record fields =>
---         simp only [map, Binder.mk.injEq]
---         conv_lhs => rw [show fields.map (RecordLabeled.map (map (g ∘ f))) =
---             (fields.map (RecordLabeled.map (map f))).map (RecordLabeled.map (map g)) from ?_]
---         · rfl
---         · rw [← Delimited.comp_map]
---           apply Delimited.map_congr
---           intro rl
---           cases rl with
---           | Pun n => rfl
---           | Field l sep v => simp [RecordLabeled.map, map_comp f g v]
---     | Parens w =>
---         simp only [map, Binder.mk.injEq]
---         cases w; simp [Wrapped.map, map_comp f g]
---     | Typed b t t_ =>
---         simp only [map, Binder.mk.injEq, BinderF.Typed.injEq, true_and, and_true]
---         constructor
---         · exact map_comp f g b
---         · exact Type_.map_comp f g t_
---     | Op first ops =>
---         simp only [map, Binder.mk.injEq, BinderF.Op.injEq]
---         constructor
---         · exact map_comp f g first
---         · apply NonEmptyArray.ext
---           apply Array.ext; simp [Array.size_map, Array.map_map]
---           intro i h1 h2
---           simp [Array.getElem_map, map_comp f g]
---     | Error d => simp [map, Function.comp]
--- termination_by b
--- Helper: attach then map f is the same as map f on array elements
-@[simp] theorem mapArray_eq {e f : Type} (g : e → f) (arr : Array (Binder e)) :
+--   @[simp] theorem mapOptionSeparated_comp (f : e1 → e2) (g : e2 → e3) (o : Option (Separated (Binder e1))) : mapOptionSeparated (g ∘ f) o = mapOptionSeparated g (mapOptionSeparated f o) := by
+--     match o with | none => rfl | some s => simp only [mapOptionSeparated, mapSeparated_comp]
+
+--   @[simp] theorem mapSeparated_comp (f : e1 → e2) (g : e2 → e3) (s : Separated (Binder e1)) : mapSeparated (g ∘ f) s = mapSeparated g (mapSeparated f s) := by
+--     simp only [mapSeparated, map_comp]
+--     congr
+--     simp only [Array.map_map, Array.attach_map]
+--     congr; ext ⟨tok, b'⟩ h; exact map_comp f g b'
+
+--   @[simp] theorem mapDelimitedRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (d : Delimited (RecordLabeled (Binder e1))) : mapDelimitedRecordLabeled (g ∘ f) d = mapDelimitedRecordLabeled g (mapDelimitedRecordLabeled f d) := by
+--     match d with | .mk w => simp only [mapDelimitedRecordLabeled, mapWrappedOptionSeparatedRecordLabeled_comp]
+
+--   @[simp] theorem mapWrappedOptionSeparatedRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (w : Wrapped (Option (Separated (RecordLabeled (Binder e1))))) : mapWrappedOptionSeparatedRecordLabeled (g ∘ f) w = mapWrappedOptionSeparatedRecordLabeled g (mapWrappedOptionSeparatedRecordLabeled f w) := by
+--     simp only [mapWrappedOptionSeparatedRecordLabeled, mapOptionSeparatedRecordLabeled_comp]; cases w; rfl
+
+--   @[simp] theorem mapOptionSeparatedRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (o : Option (Separated (RecordLabeled (Binder e1)))) : mapOptionSeparatedRecordLabeled (g ∘ f) o = mapOptionSeparatedRecordLabeled g (mapOptionSeparatedRecordLabeled f o) := by
+--     match o with | none => rfl | some s => simp only [mapOptionSeparatedRecordLabeled, mapSeparatedRecordLabeled_comp]
+
+--   @[simp] theorem mapSeparatedRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (s : Separated (RecordLabeled (Binder e1))) : mapSeparatedRecordLabeled (g ∘ f) s = mapSeparatedRecordLabeled g (mapSeparatedRecordLabeled f s) := by
+--     simp only [mapSeparatedRecordLabeled, mapRecordLabeled_comp]
+--     congr
+--     simp only [Array.map_map, Array.attach_map]
+--     congr; ext ⟨tok, rl⟩ h; exact mapRecordLabeled_comp f g rl
+
+--   @[simp] theorem mapRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (rl : RecordLabeled (Binder e1)) : mapRecordLabeled (g ∘ f) rl = mapRecordLabeled g (mapRecordLabeled f rl) := by
+--     match rl with | .Pun n => rfl | .Field l sep v => simp only [mapRecordLabeled, map_comp]
+
+--   @[simp] theorem mapWrapped_comp (f : e1 → e2) (g : e2 → e3) (w : Wrapped (Binder e1)) : mapWrapped (g ∘ f) w = mapWrapped g (mapWrapped f w) := by
+--     simp only [mapWrapped, map_comp]; cases w; rfl
+-- termination_by
+--   map_comp f g b => sizeOf b
+--   mapDelimited_comp f g d => sizeOf d
+--   mapWrappedOptionSeparated_comp f g w => sizeOf w
+--   mapOptionSeparated_comp f g o => sizeOf o
+--   mapSeparated_comp f g s => sizeOf s
+--   mapDelimitedRecordLabeled_comp f g d => sizeOf d
+--   mapWrappedOptionSeparatedRecordLabeled_comp f g w => sizeOf w
+--   mapOptionSeparatedRecordLabeled_comp f g o => sizeOf o
+--   mapSeparatedRecordLabeled_comp f g s => sizeOf s
+--   mapRecordLabeled_comp f g rl => sizeOf rl
+--   mapWrapped_comp f g w => sizeOf w
+-- decreasing_by
+--   all_goals (simp_all? [_root_.Array.sizeOf_attach_elem]; try omega)
+-- end
+
+@[simp] theorem mapArray_eq {e f : Type} (g : e → f) (arr : _root_.Array (Binder e)) :
     arr.map (map g) = arr.attach.map (fun ⟨b, _⟩ => map g b) := by
-  apply Array.ext
-  · simp
-  · intro i h1 h2
-    simp [Array.getElem_map]
-
--- @[simp] theorem map_id {e : Type} (b : Binder e) : b.map id = b := by
---   induction b using Binder.rec with -- won't work directly, use match
---   match b with
---   | .mk bf => cases bf <;> simp [map, LawfulFunctor.id_map, Array.map_id_fun,
---       RecordLabeled.functor_map_id, Delimited.id_map, Wrapped.id_map]
---     all_goals (
---       try (apply Array.ext; simp; intro i h1 _; simp [Array.getElem_map]; apply map_id))
-
--- @[simp] theorem map_id {e : Type} (b : Binder e) : b.map id = b := by
---   match b with
---   | .mk bf =>
---     cases bf <;> simp_all [map]
---     · rename_i args
---       have ih := fun a (h : a ∈ args) => map_id a
---       apply Array.ext
---       · simp
---       · intro i h1 h2
---         simp only [Array.getElem_map]
---         exact ih (args[i]'h1) (Array.getElem_mem args i h1)
---     · rename_i items
---       have ih := fun a (h : a ∈ items) => map_id a
---       rw [Delimited.attach_map_val]
---       cases items with | mk v =>
---       simp only [map, Delimited.map, Option.map_eq_map]
---       split <;> simp_all
---       rename_i w
---       apply Separated.ext
---       · exact ih w.head (by simp_all [Delimited.mem_def])
---       · apply Array.ext
---         · simp
---         · intro i h1 h2
---           simp only [Array.getElem_map]
---           exact ih (w.tail[i]'h1).2 (by simp_all [Delimited.mem_def]; exact Or.inr ⟨(w.tail[i]).1, Array.getElem_mem _ _ _⟩)
---     · rename_i fields
---       have ih := fun a (h : a ∈ fields) => match a with
---         | .Field l t v => map_id v = v
---         | .Pun n => rfl
---       rw [Delimited.attach_map_val]
---       cases fields with | mk v =>
---       simp only [map, Delimited.map, Option.map_eq_map]
---       split <;> simp_all
---       rename_i w
---       apply Separated.ext
---       · cases w.head <;> simp_all
---         exact ih _ (by simp_all [Delimited.mem_def])
---       · apply Array.ext
---         · simp
---         · intro i h1 h2
---           simp only [Array.getElem_map]
---           cases (w.tail[i]'h1).2 <;> simp_all
---           exact ih _ (by simp_all [Delimited.mem_def]; exact Or.inr ⟨(w.tail[i]).1, Array.getElem_mem _ _ _⟩)
---     · rename_i w
---       have ih := fun a (h : a ∈ w) => map_id a
---       rw [Wrapped.attach_map_val]
---       cases w; simp_all
---       exact ih _ (by simp)
---     · rename_i first ops
---       simp_all
---       apply NonEmptyArray.ext
---       simp only [map, NonEmptyArray.toArr_map, Array.map_map, Function.comp_def]
---       apply Array.ext
---       · simp
---       · intro i h1 h2
---         simp only [Array.getElem_map]
---         split <;> simp_all
---         exact map_id _
-
--- @[simp] theorem map_comp {e1 e2 e3 : Type} (f : e1 → e2) (g : e2 → e3) (b : Binder e1) : b.map (g ∘ f) = (b.map f).map g := by
---   match b with
---   | .mk bf =>
---     cases bf <;> simp_all [map]
---     · aesop?
---     ·
---       intro a a_1
---       aesop?
---     ·
---       apply And.intro
---       · rfl
---       · apply And.intro
---         · aesop?
---         · rfl
---     · rename_i items
---       rw [Delimited.attach_map]
---       cases items with | mk v =>
---       simp only [map, Delimited.map, Option.map_eq_map]
---       split <;> simp_all
---       rename_i w
---       apply Separated.ext
---       · exact map_comp f g _
---       · apply Array.ext
---         · simp
---         · intro i h1 h2
---           simp only [Array.getElem_map]
---           exact map_comp f g _
---     · rename_i fields
---       try rw [Delimited.attach_map]
---       cases fields with | mk v =>
---       apply And.intro
---       · rfl
---       · apply And.intro
---         · exact map_comp f g _
---         · rfl
---     · rename_i w
---       try rw [Wrapped.attach_map]
---       cases w
---       exact map_comp f g _
---     · rename_i first ops
---       try apply NonEmptyArray.ext
---       apply And.intro
---       · exact map_comp f g _
---       · apply And.intro
---         · apply And.intro
---           · sorry
---           · sorry
---         · sorry
---       simp only [map, NonEmptyArray.toArr_map, Array.map_map, Function.comp_def]
---       apply Array.ext
---       · simp
---       · intro i h1 h2
---         simp only [Array.getElem_map]
---         split <;> simp_all
---         exact map_comp f g _
+  simp only [Array.map_subtype, Array.unattach_attach]
 
 -- instance : Functor Binder where map := map
 -- instance : LawfulFunctor Binder where

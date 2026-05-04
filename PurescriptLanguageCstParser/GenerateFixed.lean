@@ -149,10 +149,15 @@ meta def getParamIds (params : Array Syntax) : Array Ident := Id.run do
             ids := ids.push ⟨n[0]!⟩
   return ids
 
+meta partial def findSepBy (s : Syntax) : Option Syntax :=
+  if s.getArgs.any (·.getKind == ``Lean.Parser.Command.derivingClass) then some s
+  else if s.getNumArgs > 0 then s.getArgs.findSome? findSepBy
+  else none
+
 meta def generateFixedSyntax (stx : Syntax) : CommandElabM Syntax := do
-  -- stx is a `generate_fixed` command with modifiers.
   -- [0]: mods, [1]: "generate_fixed", [2]: kw, [3]: name, [4]: params, [5]: "from", [6]: functor, [7]: fills, [8]: deriving?
   let mods : TSyntax ``Lean.Parser.Command.declModifiers := ⟨stx[0]⟩
+  -- [1] is the keyword ("generate_fixed" or "generate_fixed?")
   let kw          := stx[2]
   let fixName     : Ident := ⟨stx[3]⟩
   let params      : Array (TSyntax [`ident, `Lean.Parser.Term.hole, `Lean.Parser.Term.bracketedBinder]) :=
@@ -173,34 +178,44 @@ meta def generateFixedSyntax (stx : Syntax) : CommandElabM Syntax := do
     else if kw.isToken "structure" || (kw.getNumArgs > 0 && kw[0].isToken "structure") then "structure"
     else ""
 
+  let ids : Array (TSyntax `Lean.Parser.Command.derivingClass) :=
+    match findSepBy stx[8] with
+    | some cn => cn.getSepArgs.map TSyntax.mk
+    | none => #[]
+
   match kwStr with
   | "inductive" => do
       let paramNames := getParamIds params
       let resultType : Term ← `(term| $fixName $paramNames*)
       let ctors ← buildCtors fName fills resultType
-      if deriving?.isNone then
+      if ids.isEmpty then
         `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]*)
       else
-        let ds := deriving?[0] -- the `deriving` clause
-        let ids : Array (TSyntax `Lean.Parser.Command.derivingClass) :=
-            ds[1].getSepArgs.map fun id => ⟨Syntax.node .none ``Lean.Parser.Command.derivingClass #[id]⟩
         `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]* deriving $[$ids],*)
   | "structure" => do
       let sfields ← buildStructFields fName fills
       let sfieldsCast : Array (TSyntax [`Lean.Parser.Command.structExplicitBinder, `Lean.Parser.Command.structImplicitBinder, `Lean.Parser.Command.structInstBinder, `Lean.Parser.Command.structSimpleBinder]) :=
         sfields.map TSyntax.mk
-      if deriving?.isNone then
+      if ids.isEmpty then
         `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]*)
       else
-        let ds := deriving?[0] -- the `deriving` clause
-        let ids : Array (TSyntax `Lean.Parser.Command.derivingClass) :=
-            ds[1].getSepArgs.map fun id => ⟨Syntax.node .none ``Lean.Parser.Command.derivingClass #[id]⟩
         `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]* deriving $[$ids],*)
   | _ => throwError "generate_fixed: expected 'inductive' or 'structure'"
 
 syntax (name := generateFixed) declModifiers "generate_fixed" fixed_kind ident bracketedBinder*
      "from" ident fillClause*
-     (ppLine "deriving " Lean.Parser.Command.derivingClass,+)? : command
+     (ppLine Lean.Parser.Command.optDeriving)? : command
+
+syntax (name := generateFixedTrace) declModifiers "generate_fixed?" fixed_kind ident bracketedBinder*
+     "from" ident fillClause*
+     (ppLine Lean.Parser.Command.optDeriving)? : command
+
+meta partial def stripInfo (s : Syntax) : Syntax :=
+  match s with
+  | .node _ kind args => .node .none kind (args.map stripInfo)
+  | .ident _ preresolved name preresolved' => .ident .none preresolved name preresolved'
+  | .atom _ val => .atom .none val
+  | _ => s
 
 @[command_elab generateFixed]
 public meta def elabGenerateFixed : CommandElab := fun stx => do
@@ -208,17 +223,39 @@ public meta def elabGenerateFixed : CommandElab := fun stx => do
   trace[Meta.debug] "generate_fixed expansion:\n{cmd}"
   elabCommand cmd
 
-elab "generate_fixed_mutual" cmds:command+ "end_generate_fixed_mutual" : command => do
+@[command_elab generateFixedTrace]
+public meta def elabGenerateFixedTrace : CommandElab := fun stx => do
+  let cmd ← generateFixedSyntax stx
+  logInfo m!"generate_fixed expansion:\n{stripInfo cmd}"
+  trace[Meta.debug] "generate_fixed expansion:\n{cmd}"
+  elabCommand cmd
+
+meta def elabGenerateFixedMutual (trace : Bool) (cmds : Array Syntax) : CommandElabM Unit := do
   let mut expanded : Array (TSyntax `command) := #[]
   for cmd in cmds do
     let cmd ← liftMacroM <| expandMacros cmd
-    if cmd.getKind == ``generateFixed then
+    if cmd.getKind == ``generateFixed || cmd.getKind == ``generateFixedTrace then
       let exp ← generateFixedSyntax cmd
       expanded := expanded.push ⟨exp⟩
     else
       expanded := expanded.push ⟨cmd⟩
   let mutualCmd ← `(command| mutual $[$expanded]* end)
+  if trace then
+    logInfo m!"generate_fixed_mutual expansion:\n{stripInfo mutualCmd}"
   trace[Meta.debug] "generate_fixed_mutual expansion:\n{mutualCmd}"
   elabCommand mutualCmd
+
+syntax (name := generateFixedMutual) declModifiers "generate_fixed_mutual" command+ "end_generate_fixed_mutual" : command
+syntax (name := generateFixedMutualTrace) declModifiers "generate_fixed_mutual?" command+ "end_generate_fixed_mutual" : command
+
+@[command_elab generateFixedMutual]
+public meta def elabGenerateFixedMutualCommand : CommandElab := fun stx => do
+  let cmds := stx[2].getArgs
+  elabGenerateFixedMutual false cmds
+
+@[command_elab generateFixedMutualTrace]
+public meta def elabGenerateFixedMutualTraceCommand : CommandElab := fun stx => do
+  let cmds := stx[2].getArgs
+  elabGenerateFixedMutual true cmds
 
 end
