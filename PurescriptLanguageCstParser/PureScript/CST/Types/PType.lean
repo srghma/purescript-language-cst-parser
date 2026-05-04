@@ -736,7 +736,7 @@ instance : LawfulFunctor (TypeVarBindingF name) where
   id_map t := TypeVarBindingF.id_map t
   comp_map g h t := TypeVarBindingF.comp_map g h t
 
-structure RowF (e type_e : Type) where
+structure RowF (type_e : Type) where
   labels : Option (Separated (Labeled (Name Label) (type_e)))
   tail : Option (SourceToken × type_e)
   deriving Repr, BEq
@@ -744,56 +744,52 @@ structure RowF (e type_e : Type) where
 namespace RowF
 
 
-@[simp] def map (f : type_e → type_e') : RowF e type_e → RowF e type_e'
+@[simp] def map (f : type_e → type_e') : RowF type_e → RowF type_e'
   | { labels, tail } => {
     labels := labels.map (Separated.map (Labeled.map_value f))
     tail   := tail.map (fun (tok, t) => (tok, f t))
   }
 
-@[simp] theorem id_map {e α : Type} (r : RowF e α) : (map id r) = r := by
+@[simp] theorem id_map {α : Type} (r : RowF α) : (map id r) = r := by
   cases r; simp only [map, Labeled.map_value_id_fun, Separated.map_id_fun, Option.map_id, id_eq,
     Option.map_id_fun']
 
-@[simp] theorem comp_map {e α β γ : Type} (f : α → β) (g : β → γ) (r : RowF e α) : (map (g ∘ f) r) = (map g (map f r)) := by
+@[simp] theorem comp_map {α β γ : Type} (f : α → β) (g : β → γ) (r : RowF α) : (map (g ∘ f) r) = (map g (map f r)) := by
   cases r with | mk l t =>
   simp only [map, Labeled.map_value_comp_fun, Separated.map_comp_fun, Function.comp_apply,
     Option.map_map, mk.injEq, true_and]
   cases t <;> rfl
 
-@[simp] theorem sizeOf_labels [SizeOf e] [SizeOf α] (r : RowF e α) : sizeOf r.labels < sizeOf r := by
+@[simp] theorem sizeOf_labels [SizeOf α] (r : RowF α) : sizeOf r.labels < sizeOf r := by
   cases r with | mk l t =>
   change sizeOf l < 1 + sizeOf l + sizeOf t
   omega
 
-@[simp] theorem sizeOf_tail [SizeOf e] [SizeOf α] (r : RowF e α) : sizeOf r.tail < sizeOf r := by
+@[simp] theorem sizeOf_tail [SizeOf α] (r : RowF α) : sizeOf r.tail < sizeOf r := by
   cases r with | mk l t =>
   change sizeOf t < 1 + sizeOf l + sizeOf t
   omega
 
-def map_e {e f α : Type} (_g : e → f) (r : RowF e α) : RowF f α :=
-  { labels := r.labels, tail := r.tail }
+def map_e {e f α : Type} (_g : e → f) (r : RowF α) : RowF α :=
+  r
 
-@[simp] theorem map_e_id {e α : Type} (r : RowF e α) : map_e (id : e → e) r = r := by
-  cases r
-  simp only [map_e]
+@[simp] theorem map_e_id {e α : Type} (r : RowF α) : map_e (id : e → e) r = r := rfl
 
-@[simp] theorem map_e_comp {e f g α : Type} (ge : e → f) (gf : f → g) (r : RowF e α) :
-  map_e (gf ∘ ge) r = map_e gf (map_e ge r) := by
-  cases r
-  simp only [map_e]
+@[simp] theorem map_e_comp {e f g α : Type} (ge : e → f) (gf : f → g) (r : RowF α) :
+  map_e (gf ∘ ge) r = map_e gf (map_e ge r) := rfl
 
-@[simp] theorem map_comm {e f α β : Type} (ge : e → f) (ga : α → β) (r : RowF e α) :
+@[simp] theorem map_comm {e f α β : Type} (ge : e → f) (ga : α → β) (r : RowF α) :
   (map ga) (map_e ge r) = map_e ge ((map ga) r) := rfl
 
 end RowF
 
-instance : Functor (RowF e) where
+instance : Functor RowF where
   map := RowF.map
 
-instance : LawfulFunctor (RowF e) where
+instance : LawfulFunctor RowF where
   map_const := rfl
-  id_map r := RowF.id_map r
-  comp_map g h r := RowF.comp_map g h r
+  id_map := RowF.id_map
+  comp_map := RowF.comp_map
 
 
 -- Why? https://github.com/leanprover/lean4/issues/13465#issuecomment-4360118365 bc alternative is to wrap in inductive
@@ -864,8 +860,8 @@ inductive TypeF (e type_e : Type)
   | Hole (name : Name Ident)
   | NonEmptyString (token : SourceToken) (value : NonEmptyString)
   | Int (prefix_ : Option SourceToken) (token : SourceToken) (value : IntValue)
-  | Row (wrapped : Wrapped (RowF e type_e))
-  | Record (wrapped : Wrapped (RowF e type_e))
+  | Row (wrapped : Wrapped (RowF type_e))
+  | Record (wrapped : Wrapped (RowF type_e))
   | Forall (open_ : SourceToken) (bindings : inline_TypeF_Forall_Bindings type_e) (close : SourceToken) (body : type_e)
   | Kinded (type_ : type_e) (sep : SourceToken) (kind : type_e)
   | App (fn : type_e) (args : NonEmptyArray type_e)
@@ -884,26 +880,6 @@ inductive TypeF (e type_e : Type)
 -- #check TypeF._sizeOf_1
 
 namespace TypeF
-
-  @[simp] theorem sizeOf_Var [SizeOf e] [SizeOf type_e] (n) : sizeOf (Var (e := e) (type_e := type_e) n) = 1 + sizeOf n := Var.sizeOf_spec n
-  @[simp] theorem sizeOf_Constructor [SizeOf e] [SizeOf type_e] (n) : sizeOf (Constructor (e := e) (type_e := type_e) n) = 1 + sizeOf n := Constructor.sizeOf_spec n
-  @[simp] theorem sizeOf_Wildcard [SizeOf e] [SizeOf type_e] (t) : sizeOf (Wildcard (e := e) (type_e := type_e) t) = 1 + sizeOf t := Wildcard.sizeOf_spec t
-  @[simp] theorem sizeOf_Hole [SizeOf e] [SizeOf type_e] (n) : sizeOf (Hole (e := e) (type_e := type_e) n) = 1 + sizeOf n := Hole.sizeOf_spec n
-  @[simp] theorem sizeOf_NonEmptyString [SizeOf e] [SizeOf type_e] (t v) : sizeOf (NonEmptyString (e := e) (type_e := type_e) t v) = 1 + sizeOf t + sizeOf v := NonEmptyString.sizeOf_spec t v
-  @[simp] theorem sizeOf_Int [SizeOf e] [SizeOf type_e] (p t v) : sizeOf (Int (e := e) (type_e := type_e) p t v) = 1 + sizeOf p + sizeOf t + sizeOf v := Int.sizeOf_spec p t v
-  @[simp] theorem sizeOf_Row [SizeOf e] [SizeOf type_e] (w) : sizeOf (Row (e := e) (type_e := type_e) w) = 1 + sizeOf w := Row.sizeOf_spec w
-  @[simp] theorem sizeOf_Record [SizeOf e] [SizeOf type_e] (w) : sizeOf (Record (e := e) (type_e := type_e) w) = 1 + sizeOf w := Record.sizeOf_spec w
-  @[simp] theorem sizeOf_Forall [SizeOf e] [SizeOf type_e] (o b c body) : sizeOf (Forall (e := e) (type_e := type_e) o b c body) = 1 + sizeOf o + sizeOf b + sizeOf c + sizeOf body := Forall.sizeOf_spec o b c body
-  @[simp] theorem sizeOf_Kinded [SizeOf e] [SizeOf type_e] (t s k) : sizeOf (Kinded (e := e) (type_e := type_e) t s k) = 1 + sizeOf t + sizeOf s + sizeOf k := Kinded.sizeOf_spec t s k
-  @[simp] theorem sizeOf_App [SizeOf e] [SizeOf type_e] (f a) : sizeOf (App (e := e) (type_e := type_e) f a) = 1 + sizeOf f + sizeOf a := App.sizeOf_spec f a
-  @[simp] theorem sizeOf_Op [SizeOf e] [SizeOf type_e] (f o) : sizeOf (Op (e := e) (type_e := type_e) f o) = 1 + sizeOf f + sizeOf o := Op.sizeOf_spec f o
-  @[simp] theorem sizeOf_OpName [SizeOf e] [SizeOf type_e] (n) : sizeOf (OpName (e := e) (type_e := type_e) n) = 1 + sizeOf n := OpName.sizeOf_spec n
-  @[simp] theorem sizeOf_Arrow [SizeOf e] [SizeOf type_e] (d t c) : sizeOf (Arrow (e := e) (type_e := type_e) d t c) = 1 + sizeOf d + sizeOf t + sizeOf c := Arrow.sizeOf_spec d t c
-  @[simp] theorem sizeOf_ArrowName [SizeOf e] [SizeOf type_e] (t) : sizeOf (ArrowName (e := e) (type_e := type_e) t) = 1 + sizeOf t := ArrowName.sizeOf_spec t
-  @[simp] theorem sizeOf_Constrained [SizeOf e] [SizeOf type_e] (t tok b) : sizeOf (Constrained (e := e) (type_e := type_e) t tok b) = 1 + sizeOf t + sizeOf tok + sizeOf b := Constrained.sizeOf_spec t tok b
-  @[simp] theorem sizeOf_Parens [SizeOf e] [SizeOf type_e] (w) : sizeOf (Parens (e := e) (type_e := type_e) w) = 1 + sizeOf w := Parens.sizeOf_spec w
-  @[simp] theorem sizeOf_Error [SizeOf e] [SizeOf type_e] (d) : sizeOf (Error (e := e) (type_e := type_e) d) = 1 + sizeOf d := Error.sizeOf_spec d
-
   @[simp] def map (f : type_a -> type_b) : TypeF e type_a → TypeF e type_b
     | .Var n                    => .Var n
     | .Constructor n            => .Constructor n
@@ -911,7 +887,7 @@ namespace TypeF
     | .Hole n                   => .Hole n
     | .NonEmptyString t v       => .NonEmptyString t v
     | .Int p t v                => .Int p t v
-    | .Row w                    => .Row ((f <$> ·) <$> w)   -- Wrapped (RowF e type_e)
+    | .Row w                    => .Row ((f <$> ·) <$> w)   -- Wrapped (RowF type_e)
     | .Record w                 => .Record ((f <$> ·) <$> w)
     | .Forall o bs c body       => .Forall o (TypeF_Forall_Bindings.map f bs) c (f body)
     | .Kinded t sep k           => .Kinded (f t) sep (f k)
@@ -924,12 +900,12 @@ namespace TypeF
     | .Parens w                 => .Parens (f <$> w)  -- Wrapped type_e
     | .Error e                  => .Error e            -- e ≠ type_e, unchanged
 
-  @[simp] theorem sizeOf_row [SizeOf e] [SizeOf type_e] (w : Wrapped (RowF e type_e)) : sizeOf w.value < sizeOf (TypeF.Row (e := e) (type_e := type_e) w) := by
+  @[simp] theorem sizeOf_row [SizeOf e] [SizeOf type_e] (w : Wrapped (RowF type_e)) : sizeOf w.value < sizeOf (TypeF.Row (e := e) (type_e := type_e) w) := by
     change sizeOf w.value < 1 + sizeOf w
     have := Wrapped.sizeOf_value w
     omega
 
-  @[simp] theorem sizeOf_record [SizeOf e] [SizeOf type_e] (w : Wrapped (RowF e type_e)) : sizeOf w.value < sizeOf (TypeF.Record (e := e) (type_e := type_e) w) := by
+  @[simp] theorem sizeOf_record [SizeOf e] [SizeOf type_e] (w : Wrapped (RowF type_e)) : sizeOf w.value < sizeOf (TypeF.Record (e := e) (type_e := type_e) w) := by
     change sizeOf w.value < 1 + sizeOf w
     have := Wrapped.sizeOf_value w
     omega
@@ -1096,26 +1072,21 @@ inductive Type_ (e : Type)
   | mk (value : TypeF e (Type_ e))
   deriving Repr, BEq
 
--- namespace Type_
---   @[simp] theorem sizeOf_mk [SizeOf e] (v) : sizeOf (Type_.mk (e := e) v) = 1 + sizeOf v :=
---     Type_.mk.sizeOf_spec v
--- end Type_
-
 mutual
-  @[simp] def Type_.mapArray {e f : Type} (g : e → f) (arr : Array (Type_ e)) : Array (Type_ f) :=
+  def Type_.mapArray {e f : Type} (g : e → f) (arr : Array (Type_ e)) : Array (Type_ f) :=
     arr.map (Type_.map g)
   termination_by sizeOf arr
   decreasing_by
     all_goals decreasing_trivial
 
-  @[simp] def Type_.mapNonEmpty {e f : Type} (g : e → f) (args : NonEmptyArray (Type_ e))
+  def Type_.mapNonEmpty {e f : Type} (g : e → f) (args : NonEmptyArray (Type_ e))
       : NonEmptyArray (Type_ f) :=
     ⟨Type_.map g args.head, Type_.mapArray g args.tail⟩
   termination_by sizeOf args
   decreasing_by
     all_goals simp
 
-  @[simp] def TypeVarBindingF.mapType {name e f : Type} [SizeOf name] (g : e → f)
+  def TypeVarBindingF.mapType {name e f : Type} [SizeOf name] (g : e → f)
       (binding : TypeVarBindingF name (Type_ e)) : TypeVarBindingF name (Type_ f) :=
     match binding with
     | .Kinded w => .Kinded { w with value := { w.value with value := Type_.map g w.value.value } }
@@ -1127,7 +1098,7 @@ mutual
     have h2 := Labeled.sizeOf_value w.value
     omega
 
-  @[simp] def TypeF_Forall_Bindings.mapTypeArray {e f : Type} (g : e → f)
+  def TypeF_Forall_Bindings.mapTypeArray {e f : Type} (g : e → f)
       (arr : Array (TypeVarBindingF (Prefixed (Name Ident)) (Type_ e))) :
       Array (TypeVarBindingF (Prefixed (Name Ident)) (Type_ f)) :=
     arr.attach.map (fun ⟨entry, _h⟩ => TypeVarBindingF.mapType g entry)
@@ -1136,7 +1107,7 @@ mutual
     simp_wf
     decreasing_trivial
 
-  @[simp] def TypeF_Forall_Bindings.mapType {e f : Type} (g : e → f)
+  def TypeF_Forall_Bindings.mapType {e f : Type} (g : e → f)
       (bs : TypeF_Forall_Bindings (Type_ e)) : TypeF_Forall_Bindings (Type_ f) :=
     ⟨TypeVarBindingF.mapType g bs.head, TypeF_Forall_Bindings.mapTypeArray g bs.tail⟩
   termination_by sizeOf bs
@@ -1144,7 +1115,7 @@ mutual
     simp_wf
     decreasing_trivial
 
-  @[simp] def TypeF_Op_Ops.mapTypeElem {e f : Type} (g : e → f)
+  def TypeF_Op_Ops.mapTypeElem {e f : Type} (g : e → f)
       (op : QualifiedName Operator × Type_ e) : QualifiedName Operator × Type_ f :=
     (op.1, Type_.map g op.2)
   termination_by sizeOf op
@@ -1153,7 +1124,7 @@ mutual
     simp
     omega
 
-  @[simp] def TypeF_Op_Ops.mapTypeArray {e f : Type} (g : e → f)
+  def TypeF_Op_Ops.mapTypeArray {e f : Type} (g : e → f)
       (arr : Array (QualifiedName Operator × Type_ e)) :
       Array (QualifiedName Operator × Type_ f) :=
     arr.map (TypeF_Op_Ops.mapTypeElem g)
@@ -1161,21 +1132,21 @@ mutual
   decreasing_by
     all_goals decreasing_trivial
 
-  @[simp] def TypeF_Op_Ops.mapType {e f : Type} (g : e → f)
+  def TypeF_Op_Ops.mapType {e f : Type} (g : e → f)
       (ops : TypeF_Op_Ops (Type_ e)) : TypeF_Op_Ops (Type_ f) :=
     ⟨TypeF_Op_Ops.mapTypeElem g ops.head, TypeF_Op_Ops.mapTypeArray g ops.tail⟩
   termination_by sizeOf ops
   decreasing_by
     all_goals simp
 
-  @[simp] def Labeled.mapTypeValue {α e f : Type} [SizeOf α] (g : e → f)
+  def Labeled.mapTypeValue {α e f : Type} [SizeOf α] (g : e → f)
       (l : Labeled α (Type_ e)) : Labeled α (Type_ f) :=
     { l with value := Type_.map g l.value }
   termination_by sizeOf l
   decreasing_by
     simp_wf
 
-  @[simp] def Separated.mapTypeTailElem {α e f : Type} [SizeOf α] (g : e → f)
+  def Separated.mapTypeTailElem {α e f : Type} [SizeOf α] (g : e → f)
       (entry : SourceToken × Labeled α (Type_ e)) :
       SourceToken × Labeled α (Type_ f) :=
     (entry.1, Labeled.mapTypeValue g entry.2)
@@ -1185,7 +1156,7 @@ mutual
     simp
     omega
 
-  @[simp] def Separated.mapTypeTailArray {α e f : Type} [SizeOf α] (tail : Array (SourceToken × Labeled α (Type_ e)))
+  def Separated.mapTypeTailArray {α e f : Type} [SizeOf α] (tail : Array (SourceToken × Labeled α (Type_ e)))
       (g : e → f) : Array (SourceToken × Labeled α (Type_ f)) :=
     tail.attach.map (fun ⟨entry, _h⟩ => Separated.mapTypeTailElem g entry)
   termination_by sizeOf tail
@@ -1193,7 +1164,7 @@ mutual
     simp_wf
     decreasing_trivial
 
-  @[simp] def Separated.mapType {α e f : Type} [SizeOf α] (g : e → f)
+  def Separated.mapType {α e f : Type} [SizeOf α] (g : e → f)
       (s : Separated (Labeled α (Type_ e))) : Separated (Labeled α (Type_ f)) :=
     ⟨Labeled.mapTypeValue g s.head, Separated.mapTypeTailArray s.tail g⟩
   termination_by sizeOf s
@@ -1201,7 +1172,7 @@ mutual
     simp_wf
     decreasing_trivial
 
-  @[simp] def RowF.mapTypeTail {e f : Type} (g : e → f)
+  def RowF.mapTypeTail {e f : Type} (g : e → f)
       (tail : SourceToken × Type_ e) : SourceToken × Type_ f :=
     (tail.1, Type_.map g tail.2)
   termination_by sizeOf tail
@@ -1210,13 +1181,13 @@ mutual
     simp
     omega
 
-  @[simp] def Type_.map {e f : Type} (g : e → f) : Type_ e → Type_ f
+  def Type_.map {e f : Type} (g : e → f) : Type_ e → Type_ f
     | .mk v => .mk (TypeF.mapType g v)
   termination_by t => sizeOf t
   decreasing_by
     simp_wf
 
-  @[simp] def TypeF.mapType {e f : Type} (g : e → f) (v : TypeF e (Type_ e))
+  def TypeF.mapType {e f : Type} (g : e → f) (v : TypeF e (Type_ e))
       : TypeF f (Type_ f) :=
     match v with
     | .Var n                 => .Var n
@@ -1275,8 +1246,8 @@ mutual
         simpa only [Wrapped.mk.sizeOf_spec] using (Wrapped.sizeOf_value (Wrapped.mk open_ r close))
       omega
 
-  @[simp] def RowF.mapType {e f : Type} (g : e → f) (r : RowF e (Type_ e))
-      : RowF f (Type_ f) :=
+  def RowF.mapType {e f : Type} (g : e → f) (r : RowF (Type_ e))
+      : RowF (Type_ f) :=
     match r with
     | { labels := none, tail := none } => { labels := none, tail := none }
     | { labels := some labels, tail := none } =>
@@ -1370,7 +1341,7 @@ mutual
     simp only [RowF.mapTypeTail, Prod.mk.injEq, true_and]
     apply Type_.map_id
 
-  @[simp] theorem RowF.mapType_id {e : Type} (r : RowF e (Type_ e)) : RowF.mapType id r = r := by
+  @[simp] theorem RowF.mapType_id {e : Type} (r : RowF (Type_ e)) : RowF.mapType id r = r := by
     cases r with | mk labels tail =>
       cases labels <;> cases tail
       · simp_all only [RowF.mapType]
@@ -1541,7 +1512,7 @@ mutual
     simp only [RowF.mapTypeTail, Prod.mk.injEq, true_and]
     apply Type_.map_comp
 
-  @[simp] theorem RowF.mapType_comp {e f g : Type} (ge : e → f) (gf : f → g) (r : RowF e (Type_ e)) :
+  @[simp] theorem RowF.mapType_comp {e f g : Type} (ge : e → f) (gf : f → g) (r : RowF (Type_ e)) :
       RowF.mapType (gf ∘ ge) r = RowF.mapType gf (RowF.mapType ge r) := by
     cases r with | mk labels tail =>
       cases labels <;> cases tail
