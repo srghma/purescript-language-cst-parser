@@ -1,3 +1,4 @@
+
 module
 
 import NonEmpty.CorrectByConstruction.Array
@@ -5,6 +6,7 @@ import NonEmpty.String
 import Aesop
 public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
 public import PurescriptLanguageCstParser.PureScript.CST.Types.ExprLeafs
+public import PurescriptLanguageCstParser.PureScript.CST.Types.ExprRec
 meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section
@@ -15,48 +17,6 @@ open NonEmpty.CorrectByConstruction.Array
 open NonEmpty.String
 open PureScript.CST.Types
 
--- https://github.com/leanprover/lean4/issues/13465#issuecomment-4349653768
--- mutual
-
--- inductive LetBindingRecursive (e : Type) where
---   | mk : LetBindingF e (Expr e)
---       (ValueBindingFieldsRecursive e)
---       (WhereRecursive e)
---     → LetBindingRecursive e
---   deriving Repr, BEq
-
--- inductive WhereRecursive (e : Type) where
---   | mk : WhereF e (Expr e) (LetBindingRecursive e) → WhereRecursive e
---   deriving Repr, BEq
-
--- inductive GuardedRecursive (e : Type) where
---   | mk : GuardedF e (Expr e)
---       (WhereRecursive e)
---       (GuardedRecursive e)
---     → GuardedRecursive e
---   deriving Repr, BEq
-
--- inductive ValueBindingFieldsRecursive (e : Type) where
---   | mk : ValueBindingFieldsF e (Expr e) (GuardedRecursive e)
---     → ValueBindingFieldsRecursive e
---   deriving Repr, BEq
-
--- inductive DoStatementRecursive (e : Type)
---   | mk : DoStatementF e (Expr e) (LetBindingRecursive e) → DoStatementRecursive e
---   deriving Repr, BEq
-
--- inductive DoBlockRecursive (e : Type)
---   | mk : DoBlockF e (Expr e) (DoStatementRecursive e) → DoBlockRecursive e
---   deriving Repr, BEq
-
--- inductive AdoBlockRecursive (e : Type)
---   | mk : AdoBlockF e (Expr e) (DoStatementRecursive e) → AdoBlockRecursive e
---   deriving Repr, BEq
-
--- inductive Expr (e : Type)
---   | mk : ExprF e (Expr e) (DoBlockRecursive e) (AdoBlockRecursive e) (LetBindingRecursive e) (GuardedRecursive e) → Expr e
---   deriving Repr, BEq
--- end
 -----------------------------------------------------------------------------------------------------------
 
 -- inductive InstanceBinding (e : Type)
@@ -249,4 +209,3 @@ open PureScript.CST.Types
 --   header : ModuleHeader e
 --   body : ModuleBody e
 --   deriving Repr, BEq
-end PureScript.CST.Types
