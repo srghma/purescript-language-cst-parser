@@ -3,6 +3,7 @@ module
 public import NonEmpty.CorrectByConstruction.Array
 public import NonEmpty.String
 import Aesop
+import PurescriptLanguageCstParser.GenerateFixed
 
 namespace PureScript.CST.Types
 
@@ -1068,8 +1069,8 @@ instance : LawfulFunctor (TypeF e) where
   id_map t := by simp only [Functor.map, TypeF.map_id]
   comp_map g h t := by simp only [Functor.map, TypeF.map_comp]
 
-inductive Type_ (e : Type)
-  | mk (value : TypeF e (Type_ e))
+generate_fixed inductive Type_ (e : Type) from TypeF
+  fill type_e with (Type_ e)
   deriving Repr, BEq
 
 mutual
@@ -1182,14 +1183,6 @@ mutual
     omega
 
   def Type_.map {e f : Type} (g : e → f) : Type_ e → Type_ f
-    | .mk v => .mk (TypeF.mapType g v)
-  termination_by t => sizeOf t
-  decreasing_by
-    simp_wf
-
-  def TypeF.mapType {e f : Type} (g : e → f) (v : TypeF e (Type_ e))
-      : TypeF f (Type_ f) :=
-    match v with
     | .Var n                 => .Var n
     | .Constructor n         => .Constructor n
     | .Wildcard t            => .Wildcard t
@@ -1208,40 +1201,40 @@ mutual
     | .Op first ops          => .Op (Type_.map g first) (TypeF_Op_Ops.mapType g ops)
     | .Row ⟨open_, r, close⟩ => .Row ⟨open_, RowF.mapType g r, close⟩
     | .Record ⟨open_, r, close⟩ => .Record ⟨open_, RowF.mapType g r, close⟩
-  termination_by sizeOf v
+  termination_by t => sizeOf t
   decreasing_by
-    · simp_all only [TypeF.Kinded.sizeOf_spec]
+    · simp_all only [Type_.Kinded.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Kinded.sizeOf_spec, Nat.lt_add_left_iff_pos]
+    · simp_all only [Type_.Kinded.sizeOf_spec, Nat.lt_add_left_iff_pos]
       omega
-    · simp_all only [TypeF.Arrow.sizeOf_spec]
+    · simp_all only [Type_.Arrow.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Arrow.sizeOf_spec, Nat.lt_add_left_iff_pos]
+    · simp_all only [Type_.Arrow.sizeOf_spec, Nat.lt_add_left_iff_pos]
       omega
-    · simp_all only [TypeF.Constrained.sizeOf_spec]
+    · simp_all only [Type_.Constrained.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Constrained.sizeOf_spec, Nat.lt_add_left_iff_pos]
+    · simp_all only [Type_.Constrained.sizeOf_spec, Nat.lt_add_left_iff_pos]
       omega
-    · simp_all only [TypeF.Parens.sizeOf_spec]
+    · simp_all only [Type_.Parens.sizeOf_spec]
       have := Wrapped.sizeOf_value w
       omega
-    · simp_all only [TypeF.App.sizeOf_spec]
+    · simp_all only [Type_.App.sizeOf_spec]
       omega
-    · simp_all only [TypeF.App.sizeOf_spec]
+    · simp_all only [Type_.App.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Forall.sizeOf_spec]
+    · simp_all only [Type_.Forall.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Forall.sizeOf_spec, Nat.lt_add_left_iff_pos]
+    · simp_all only [Type_.Forall.sizeOf_spec, Nat.lt_add_left_iff_pos]
       omega
-    · simp_all only [TypeF.Op.sizeOf_spec]
+    · simp_all only [Type_.Op.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Op.sizeOf_spec]
+    · simp_all only [Type_.Op.sizeOf_spec]
       omega
-    · simp_all only [TypeF.Row.sizeOf_spec]
+    · simp_all only [Type_.Row.sizeOf_spec]
       have h : sizeOf r < sizeOf (Wrapped.mk open_ r close) := by
         simpa only [Wrapped.mk.sizeOf_spec] using (Wrapped.sizeOf_value (Wrapped.mk open_ r close))
       omega
-    · simp_all only [TypeF.Record.sizeOf_spec]
+    · simp_all only [Type_.Record.sizeOf_spec]
       have h : sizeOf r < sizeOf (Wrapped.mk open_ r close) := by
         simpa only [Wrapped.mk.sizeOf_spec] using (Wrapped.sizeOf_value (Wrapped.mk open_ r close))
       omega
@@ -1372,60 +1365,56 @@ mutual
     · apply Type_.map_id
     · apply Type_.mapArray_id
 
-  @[simp] theorem TypeF.mapType_id {e : Type} (v : TypeF e (Type_ e)) : TypeF.mapType id v = v := by
-    cases v
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
+  @[simp] theorem Type_.map_id {e : Type} (t : Type_ e) : Type_.map id t = t := by
+    cases t
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
     · rename_i wrapped
-      cases wrapped; simp only [TypeF.mapType, TypeF.Row.injEq, Wrapped.mk.injEq, and_true, true_and]
+      cases wrapped; simp only [Type_.map, Type_.Row.injEq, Wrapped.mk.injEq, and_true, true_and]
       apply RowF.mapType_id
     · rename_i wrapped
-      cases wrapped; simp only [TypeF.mapType, TypeF.Record.injEq, Wrapped.mk.injEq, and_true, true_and]
+      cases wrapped; simp only [Type_.map, Type_.Record.injEq, Wrapped.mk.injEq, and_true, true_and]
       apply RowF.mapType_id
     · rename_i o bs c body
-      simp only [TypeF.mapType, TypeF.Forall.injEq, true_and]
+      simp only [Type_.map, Type_.Forall.injEq, true_and]
       apply And.intro
       · apply TypeF_Forall_Bindings.mapType_id
       · apply Type_.map_id
     · rename_i t sep k
-      simp only [TypeF.mapType, TypeF.Kinded.injEq, true_and]
+      simp only [Type_.map, Type_.Kinded.injEq, true_and]
       apply And.intro
       · apply Type_.map_id
       · apply Type_.map_id
     · rename_i fn args
-      simp only [TypeF.mapType, TypeF.App.injEq]
+      simp only [Type_.map, Type_.App.injEq]
       apply And.intro
       · apply Type_.map_id
       · apply Type_.mapNonEmpty_id
     · rename_i first ops
-      simp only [TypeF.mapType, TypeF.Op.injEq]
+      simp only [Type_.map, Type_.Op.injEq]
       apply And.intro
       · apply Type_.map_id
       · apply TypeF_Op_Ops.mapType_id
-    · simp_all only [TypeF.mapType]
+    · simp_all only [Type_.map]
     · rename_i dom tok codom
-      simp only [TypeF.mapType, TypeF.Arrow.injEq, true_and]
+      simp only [Type_.map, Type_.Arrow.injEq, true_and]
       apply And.intro
       · apply Type_.map_id
       · apply Type_.map_id
-    · simp_all only [TypeF.mapType]
+    · simp_all only [Type_.map]
     · rename_i t tok b
-      simp only [TypeF.mapType, TypeF.Constrained.injEq, true_and]
+      simp only [Type_.map, Type_.Constrained.injEq, true_and]
       apply And.intro
       · apply Type_.map_id
       · apply Type_.map_id
     · rename_i w
-      cases w; simp only [TypeF.mapType, TypeF.Parens.injEq, Wrapped.mk.injEq, and_true, true_and]
+      cases w; simp only [Type_.map, Type_.Parens.injEq, Wrapped.mk.injEq, and_true, true_and]
       apply Type_.map_id
-    · simp_all only [TypeF.mapType, id_eq]
-
-  @[simp] theorem Type_.map_id {e : Type} (t : Type_ e) : Type_.map id t = t := by
-    cases t; simp only [Type_.map, Type_.mk.injEq]
-    apply TypeF.mapType_id
+    · simp_all only [Type_.map, id_eq]
 end
 
 mutual
@@ -1546,62 +1535,66 @@ mutual
     · apply Type_.map_comp
     · apply Type_.mapArray_comp
 
-  @[simp] theorem TypeF.mapType_comp {e f g : Type} (ge : e → f) (gf : f → g) (v : TypeF e (Type_ e)) :
-      TypeF.mapType (gf ∘ ge) v = TypeF.mapType gf (TypeF.mapType ge v) := by
-    cases v
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
-    · simp_all only [TypeF.mapType]
+  @[simp] theorem Type_.map_comp {e f g : Type} (ge : e → f) (gf : f → g) (t : Type_ e) :
+      Type_.map (gf ∘ ge) t = Type_.map gf (Type_.map ge t) := by
+    cases t
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
+    · simp_all only [Type_.map]
     · rename_i wrapped
-      cases wrapped; simp only [TypeF.mapType, TypeF.Row.injEq, Wrapped.mk.injEq, and_true, true_and]
+      cases wrapped; simp only [Type_.map]
+      simp_all only [Type_.Row.injEq, Wrapped.mk.injEq, and_true, true_and]
       apply RowF.mapType_comp
     · rename_i wrapped
-      cases wrapped; simp only [TypeF.mapType, TypeF.Record.injEq, Wrapped.mk.injEq, and_true, true_and]
+      cases wrapped; simp only [Type_.map]
+      simp_all only [Type_.Record.injEq, Wrapped.mk.injEq, and_true, true_and]
       apply RowF.mapType_comp
     · rename_i o bs c body
-      simp only [TypeF.mapType, TypeF.Forall.injEq, true_and]
+      simp only [Type_.map]
+      simp_all only [Type_.Forall.injEq, true_and]
       apply And.intro
       · apply TypeF_Forall_Bindings.mapType_comp
       · apply Type_.map_comp
     · rename_i t sep k
-      simp only [TypeF.mapType, TypeF.Kinded.injEq, true_and]
+      simp only [Type_.map]
+      simp_all only [Type_.Kinded.injEq, true_and]
       apply And.intro
       · apply Type_.map_comp
       · apply Type_.map_comp
     · rename_i fn args
-      simp only [TypeF.mapType, TypeF.App.injEq]
+      simp only [Type_.map]
+      simp_all only [Type_.App.injEq]
       apply And.intro
       · apply Type_.map_comp
       · apply Type_.mapNonEmpty_comp
     · rename_i first ops
-      simp only [TypeF.mapType, TypeF.Op.injEq]
+      simp only [Type_.map]
+      simp_all only [Type_.Op.injEq]
       apply And.intro
       · apply Type_.map_comp
       · apply TypeF_Op_Ops.mapType_comp
-    · simp_all only [TypeF.mapType]
+    · simp_all only [Type_.map]
     · rename_i dom tok codom
-      simp only [TypeF.mapType, TypeF.Arrow.injEq, true_and]
+      simp only [Type_.map]
+      simp_all only [Type_.Arrow.injEq, true_and]
       apply And.intro
       · apply Type_.map_comp
       · apply Type_.map_comp
-    · simp_all only [TypeF.mapType]
+    · simp_all only [Type_.map]
     · rename_i t tok b
-      simp only [TypeF.mapType, TypeF.Constrained.injEq, true_and]
+      simp only [Type_.map]
+      simp_all only [Type_.Constrained.injEq, true_and]
       apply And.intro
       · apply Type_.map_comp
       · apply Type_.map_comp
     · rename_i w
-      cases w; simp only [TypeF.mapType, TypeF.Parens.injEq, Wrapped.mk.injEq, and_true, true_and]
+      cases w; simp only [Type_.map]
+      simp_all only [Type_.Parens.injEq, Wrapped.mk.injEq, and_true, true_and]
       apply Type_.map_comp
-    · simp_all only [TypeF.mapType, Function.comp_apply]
-
-  @[simp] theorem Type_.map_comp {e f g : Type} (ge : e → f) (gf : f → g) (t : Type_ e) :
-      Type_.map (gf ∘ ge) t = Type_.map gf (Type_.map ge t) := by
-    cases t; simp only [Type_.map, Type_.mk.injEq]
-    apply TypeF.mapType_comp
+    · simp_all only [Type_.map, Function.comp_apply]
 end
 
 @[simp] theorem functor_map_id {f : Type → Type} [Functor f] [LawfulFunctor f] {α : Type} : Functor.map (id : α → α) = (id : f α → f α) := by funext x; exact LawfulFunctor.id_map x

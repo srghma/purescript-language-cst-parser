@@ -615,7 +615,9 @@ mutual
         omega
       omega
     · have h1 : sizeOf tail[i].snd < sizeOf ({ head := head, tail := tail } : Separated (RecordLabeled (Binder _))) := by
-        simpa using Separated.sizeOf_tail_get ({ head := head, tail := tail } : Separated (RecordLabeled (Binder _))) i hi₂
+        simpa only [Separated.mk.sizeOf_spec] using
+          Separated.sizeOf_tail_get
+            ({ head := head, tail := tail } : Separated (RecordLabeled (Binder _))) i hi₂
       have h2 : sizeOf ({ head := head, tail := tail } : Separated (RecordLabeled (Binder _))) <
           sizeOf (Wrapped.mk open_ (some ({ head := head, tail := tail } : Separated (RecordLabeled (Binder _)))) close) := by
         have h3 :
@@ -775,7 +777,8 @@ mutual
                 have hInner :
                     NonEmptyArray.map (fun x => (x.1.fst, map f x.1.snd)) ops'.attach =
                       NonEmptyArray.map (fun p => (p.1, map f p.2)) ops' := by
-                  simpa [ops'] using (NonEmptyArray.attach_map ops' (fun p => (p.1, map f p.2)))
+                  simpa only [NonEmptyArray.map, NonEmptyArray.mk.injEq, Prod.mk.injEq] using
+                    (NonEmptyArray.attach_map ops' (fun p => (p.1, map f p.2)))
                 have hOpsAttach :
                     NonEmptyArray.map (fun x => (x.1.fst, map (g ∘ f) x.1.snd)) ops'.attach =
                       NonEmptyArray.map (fun x => (x.1.fst, map g x.1.snd))
@@ -851,8 +854,10 @@ mutual
         · trivial
   termination_by sizeOf w
   decreasing_by
-    simpa using
-      (Wrapped.sizeOf_value ({ open_ := open_, value := value, close := close } : Wrapped (Option (Separated (Binder e1)))))
+    simpa only [Wrapped.mk.sizeOf_spec] using
+      (Wrapped.sizeOf_value
+        ({ open_ := open_, value := value, close := close } :
+          Wrapped (Option (Separated (Binder e1)))))
 
   @[simp] theorem mapOptionSeparated_comp (f : e1 → e2) (g : e2 → e3) (o : Option (Separated (Binder e1))) :
       mapOptionSeparated (g ∘ f) o = mapOptionSeparated g (mapOptionSeparated f o) := by
@@ -881,9 +886,11 @@ mutual
               simpa only [Function.comp_apply] using map_comp f g (tail[i]'hi).2
   termination_by sizeOf s
   decreasing_by
-    · simpa using Separated.sizeOf_head ({ head := head, tail := tail } : Separated (Binder e1))
+    · simpa only [Separated.mk.sizeOf_spec] using
+      Separated.sizeOf_head ({ head := head, tail := tail } : Separated (Binder e1))
     · have hi : i < tail.size := by simpa only [Array.size_map, Array.size_attach] using hi₂
-      simpa using Separated.sizeOf_tail_get ({ head := head, tail := tail } : Separated (Binder e1)) i hi
+      simpa only [Separated.mk.sizeOf_spec, gt_iff_lt] using
+        Separated.sizeOf_tail_get ({ head := head, tail := tail } : Separated (Binder e1)) i hi
 
   @[simp] theorem mapDelimitedRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (d : Delimited (RecordLabeled (Binder e1))) :
       mapDelimitedRecordLabeled (g ∘ f) d = mapDelimitedRecordLabeled g (mapDelimitedRecordLabeled f d) := by
@@ -908,8 +915,10 @@ mutual
         · trivial
   termination_by sizeOf w
   decreasing_by
-    simpa using
-      (Wrapped.sizeOf_value ({ open_ := open_, value := value, close := close } : Wrapped (Option (Separated (RecordLabeled (Binder e1))))))
+    simpa only [Wrapped.mk.sizeOf_spec] using
+      (Wrapped.sizeOf_value
+        ({ open_ := open_, value := value, close := close } :
+          Wrapped (Option (Separated (RecordLabeled (Binder e1))))))
 
   @[simp] theorem mapOptionSeparatedRecordLabeled_comp (f : e1 → e2) (g : e2 → e3)
       (o : Option (Separated (RecordLabeled (Binder e1)))) :
@@ -940,9 +949,12 @@ mutual
               simpa only [Function.comp_apply] using mapRecordLabeled_comp f g (tail[i]'hi).2
   termination_by sizeOf s
   decreasing_by
-    · simpa using Separated.sizeOf_head ({ head := head, tail := tail } : Separated (RecordLabeled (Binder e1)))
+    · simpa only [Separated.mk.sizeOf_spec] using
+      Separated.sizeOf_head ({ head := head, tail := tail } : Separated (RecordLabeled (Binder e1)))
     · have hi : i < tail.size := by simpa only [Array.size_map, Array.size_attach] using hi₂
-      simpa using Separated.sizeOf_tail_get ({ head := head, tail := tail } : Separated (RecordLabeled (Binder e1))) i hi
+      simpa only [Separated.mk.sizeOf_spec, gt_iff_lt] using
+        Separated.sizeOf_tail_get
+          ({ head := head, tail := tail } : Separated (RecordLabeled (Binder e1))) i hi
 
   @[simp] theorem mapRecordLabeled_comp (f : e1 → e2) (g : e2 → e3) (rl : RecordLabeled (Binder e1)) :
       mapRecordLabeled (g ∘ f) rl = mapRecordLabeled g (mapRecordLabeled f rl) := by
@@ -964,8 +976,9 @@ mutual
           congrArg (fun v => Wrapped.mk open_ v close) (map_comp f g value)
   termination_by sizeOf w
   decreasing_by
-    simpa using
-      (Wrapped.sizeOf_value ({ open_ := open_, value := value, close := close } : Wrapped (Binder e1)))
+    simpa only [Wrapped.mk.sizeOf_spec] using
+      (Wrapped.sizeOf_value
+        ({ open_ := open_, value := value, close := close } : Wrapped (Binder e1)))
 end
 
 instance : Functor Binder where map := map
