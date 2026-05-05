@@ -392,7 +392,7 @@ inductive Binder (e : Type) : Type where
   deriving Repr, BEq
 -/
 #guard_msgs in
-generate_fixed? inductive Binder (e : Type) from BinderF
+generate_fixed? Binder (e : Type) from BinderF
   fill binder_e with (Binder e)
   deriving Repr, BEq
 
@@ -1284,44 +1284,36 @@ end PatternGuardF
 -- ```
 
 -- 1. GuardExpr depends only on Where
-structure GuardedExprF (e expr_e where_e : Type) where
+structure GuardedExprF (patternGuard_e where_e : Type) where
   bar        : SourceToken
-  patterns   : Separated (PatternGuardF e expr_e)
+  patterns   : Separated patternGuard_e
   separator  : SourceToken
   where_     : where_e
   deriving Repr, BEq
 
 namespace GuardedExprF
 
-@[always_inline, simp] def map_all {e e' expr_e expr_e' where_e where_e' : Type}
-  (f : e → e') (f_expr : expr_e → expr_e') (f_where : where_e → where_e')
-  (g : GuardedExprF e expr_e where_e) : GuardedExprF e' expr_e' where_e' :=
+@[always_inline, simp] def map_all {patternGuard_e patternGuard_e' where_e where_e' : Type}
+  (f_patternGuard : patternGuard_e → patternGuard_e') (f_where : where_e → where_e')
+  (g : GuardedExprF patternGuard_e where_e) : GuardedExprF patternGuard_e' where_e' :=
   { bar := g.bar
-    patterns := g.patterns.map (fun p => p.map_all f f_expr)
+    patterns := g.patterns.map f_patternGuard
     separator := g.separator
     where_ := f_where g.where_
   }
 
-@[simp] theorem map_all_id {e expr_e where_e : Type} (g : GuardedExprF e expr_e where_e) : g.map_all id id id = g := by
+@[simp] theorem map_all_id {patternGuard_e where_e : Type} (g : GuardedExprF patternGuard_e where_e) : g.map_all id id = g := by
   match g with
-  | { bar, patterns, separator, where_ } => simp only [map_all, Separated.map,
-    PatternGuardF.map_all, Binder.map_id, Option.map_id_fun', id_eq, Array.map_id_fun']
+  | { bar, patterns, separator, where_ } => simp only [map_all, Separated.map_id_fun, id_eq]
 
-@[simp] theorem map_all_comp {e1 e2 e3 expr_e1 expr_e2 expr_e3 where_e1 where_e2 where_e3 : Type}
-  (f : e1 → e2) (g : e2 → e3) (f_expr : expr_e1 → expr_e2) (g_expr : expr_e2 → expr_e3)
+@[simp] theorem map_all_comp {patternGuard_e1 patternGuard_e2 patternGuard_e3 where_e1 where_e2 where_e3 : Type}
+  (f_patternGuard : patternGuard_e1 → patternGuard_e2) (g_patternGuard : patternGuard_e2 → patternGuard_e3)
   (f_where : where_e1 → where_e2) (g_where : where_e2 → where_e3)
-  (ge : GuardedExprF e1 expr_e1 where_e1) :
-  ge.map_all (g ∘ f) (g_expr ∘ f_expr) (g_where ∘ f_where) = (ge.map_all f f_expr f_where).map_all g g_expr g_where := by
+  (ge : GuardedExprF patternGuard_e1 where_e1) :
+  ge.map_all (g_patternGuard ∘ f_patternGuard) (g_where ∘ f_where) = (ge.map_all f_patternGuard f_where).map_all g_patternGuard g_where := by
   match ge with
   | { bar, patterns, separator, where_ } =>
-    simp only [map_all, Separated.map,
-      PatternGuardF.map_all, Binder.map_comp, Function.comp_apply, Option.map_map, Array.map_map,
-    mk.injEq, Separated.mk.injEq, PatternGuardF.mk.injEq, and_true, Array.map_inj_left,
-    Prod.mk.injEq, true_and, Prod.forall, and_self]
-    apply And.intro
-    · rfl
-    · intro a b a_1
-      rfl
+    simp only [map_all, Separated.map_comp_fun, Function.comp_apply]
 
 end GuardedExprF
 
@@ -1629,7 +1621,7 @@ namespace AdoBlockF
 
 end AdoBlockF
 
-inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e : Type)
+inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e : Type)
   | Hole (name : Name Ident)
   | Section (token : SourceToken)
   | Ident (name : QualifiedName Ident)
@@ -1647,13 +1639,13 @@ inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursiv
   | Op (head : expr_e) (ops : NonEmptyArray (QualifiedName Operator × expr_e))
   | OpName (name : QualifiedName Operator)
   | Negate (token : SourceToken) (expr : expr_e)
-  | RecordAccessor (data : RecordAccessorF expr_e)
-  | RecordUpdate (expr : expr_e) (updates : DelimitedNonEmpty (RecordUpdateF expr_e))
-  | App (fn : expr_e) (args : NonEmptyArray (AppSpineF e expr_e))
-  | Lambda (data : LambdaF e expr_e)
-  | If (data : IfThenElseF expr_e)
-  | Case (data : CaseOfF e expr_e guardedRecursive_e)
-  | Let (data : LetInF expr_e letBindingRecursive_e)
+  | RecordAccessor (data : recordAccessor_e)
+  | RecordUpdate (expr : expr_e) (updates : DelimitedNonEmpty recordUpdate_e)
+  | App (fn : expr_e) (args : NonEmptyArray appSpine_e)
+  | Lambda (data : lambda_e)
+  | If (data : ifThenElse_e)
+  | Case (data : caseOf_e)
+  | Let (data : letIn_e)
   | Do (data : doBlock)
   | Ado (data : adoBlock)
   | Error (data : e)
@@ -1661,10 +1653,15 @@ inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursiv
 
 namespace ExprF
 
-@[always_inline, simp] def map_all {e e' expr_e expr_e' doBlock doBlock' adoBlock adoBlock' guardedRecursive_e guardedRecursive_e' letBindingRecursive_e letBindingRecursive_e' : Type}
+set_option linter.unusedVariables false in
+@[always_inline, simp] def map_all {e e' expr_e expr_e' doBlock doBlock' adoBlock adoBlock' guardedRecursive_e guardedRecursive_e' letBindingRecursive_e letBindingRecursive_e' recordAccessor_e recordAccessor_e' recordUpdate_e recordUpdate_e' appSpine_e appSpine_e' lambda_e lambda_e' ifThenElse_e ifThenElse_e' caseOf_e caseOf_e' letIn_e letIn_e' : Type}
   (f : e → e') (f_expr : expr_e → expr_e') (f_doBlock : doBlock → doBlock') (f_adoBlock : adoBlock → adoBlock')
   (f_guardedRecursive : guardedRecursive_e → guardedRecursive_e') (f_letBindingRecursive : letBindingRecursive_e → letBindingRecursive_e')
-  (expr : ExprF e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e) : ExprF e' expr_e' doBlock' adoBlock' guardedRecursive_e' letBindingRecursive_e' :=
+  (f_recordAccessor : recordAccessor_e → recordAccessor_e') (f_recordUpdate : recordUpdate_e → recordUpdate_e')
+  (f_appSpine : appSpine_e → appSpine_e') (f_lambda : lambda_e → lambda_e')
+  (f_ifThenElse : ifThenElse_e → ifThenElse_e') (f_caseOf : caseOf_e → caseOf_e')
+  (f_letIn : letIn_e → letIn_e')
+  (expr : ExprF e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e) : ExprF e' expr_e' doBlock' adoBlock' guardedRecursive_e' letBindingRecursive_e' recordAccessor_e' recordUpdate_e' appSpine_e' lambda_e' ifThenElse_e' caseOf_e' letIn_e' :=
   match expr with
   | Hole n => Hole n
   | Section t => Section t
@@ -1683,20 +1680,20 @@ namespace ExprF
   | Op h o => Op (f_expr h) (o.map (fun (n, e') => (n, f_expr e')))
   | OpName n => OpName n
   | Negate t e' => Negate t (f_expr e')
-  | RecordAccessor data => RecordAccessor (data.map f_expr)
-  | RecordUpdate e' updates => RecordUpdate (f_expr e') (updates.map (fun u => u.map_all f_expr))
-  | App fn args => App (f_expr fn) (args.map (fun a => a.map_all f f_expr))
-  | Lambda data => Lambda (data.map_all f f_expr)
-  | If data => If (data.map f_expr)
-  | Case data => Case (data.map_all f f_expr f_guardedRecursive)
-  | Let data => Let (data.map_all f_expr f_letBindingRecursive)
+  | RecordAccessor data => RecordAccessor (f_recordAccessor data)
+  | RecordUpdate e' updates => RecordUpdate (f_expr e') (updates.map f_recordUpdate)
+  | App fn args => App (f_expr fn) (args.map f_appSpine)
+  | Lambda data => Lambda (f_lambda data)
+  | If data => If (f_ifThenElse data)
+  | Case data => Case (f_caseOf data)
+  | Let data => Let (f_letIn data)
   | Do data => Do (f_doBlock data)
   | Ado data => Ado (f_adoBlock data)
   | Error d => Error (f d)
 
-@[simp] theorem map_all_id {e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e : Type}
-  (expr : ExprF e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e) :
-  expr.map_all id id id id id id = expr := by
+@[simp] theorem map_all_id {e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e : Type}
+  (expr : ExprF e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e) :
+  expr.map_all id id id id id id id id id id id id id = expr := by
   match expr with
   | Hole n => simp only [map_all]
   | Section t => simp only [map_all]
@@ -1720,50 +1717,33 @@ namespace ExprF
   | Op h o => simp only [map_all, id_eq, NonEmptyArray.map, Array.map_id_fun']
   | OpName n => simp only [map_all]
   | Negate t e' => simp only [map_all, id_eq]
-  | RecordAccessor data => simp only [map_all, RecordAccessorF.map, id_eq]
-  | RecordUpdate e' updates => simp only [map_all, id_eq, DelimitedNonEmpty.map, Separated.map,
-    RecordUpdateF.map_all_id, Array.map_id_fun']
-  | App fn args =>
-    simp only [map_all, id_eq, NonEmptyArray.map, AppSpineF.map_all, Type_.map_id,
-    App.injEq, true_and]
-    split
-    next s e_1 heq =>
-      ext : 1
-      · simp_all only
-      · ext i hi₁ hi₂ : 1
-        · simp_all only [Array.size_map]
-        · simp_all only [Array.getElem_map]
-          split
-          next s_1 e_2 heq_1 => simp_all only
-          next s_1 t ty heq_1 => simp_all only
-    next s t ty heq =>
-      ext : 1
-      · simp_all only
-      · ext i hi₁ hi₂ : 1
-        · simp_all only [Array.size_map]
-        · simp_all only [Array.getElem_map]
-          split
-          next s_1 e_1 heq_1 => simp_all only
-          next s_1 t_1 ty_1 heq_1 => simp_all only
-  | Lambda data => simp only [map_all, LambdaF.map_all, NonEmptyArray.map, Binder.map_id,
-    Array.map_id_fun', id_eq]
-  | If data => simp only [map_all, IfThenElseF.map, id_eq]
-  | Case data => simp only [map_all, CaseOfF.map_all, Separated.map, id_eq, Array.map_id_fun',
-    NonEmptyArray.map, Binder.map_id]
-  | Let data => simp only [map_all, LetInF.map_all, NonEmptyArray.map, id_eq, Array.map_id_fun]
+  | RecordAccessor data => simp only [map_all, id_eq]
+  | RecordUpdate e' updates => simp only [map_all, id_eq, DelimitedNonEmpty.id_map]
+  | App fn args => simp only [map_all, id_eq, NonEmptyArray.id_map]
+  | Lambda data => simp only [map_all, id_eq]
+  | If data => simp only [map_all, id_eq]
+  | Case data => simp only [map_all, id_eq]
+  | Let data => simp only [map_all, id_eq]
   | Do data => simp only [map_all, id_eq]
   | Ado data => simp only [map_all, id_eq]
   | Error d => simp only [map_all, id_eq]
 
-@[simp] theorem map_all_comp {e1 e2 e3 expr_e1 expr_e2 expr_e3 doBlock1 doBlock2 doBlock3 adoBlock1 adoBlock2 adoBlock3 guardedRecursive_e1 guardedRecursive_e2 guardedRecursive_e3 letBindingRecursive_e1 letBindingRecursive_e2 letBindingRecursive_e3 : Type}
+@[simp] theorem map_all_comp {e1 e2 e3 expr_e1 expr_e2 expr_e3 doBlock1 doBlock2 doBlock3 adoBlock1 adoBlock2 adoBlock3 guardedRecursive_e1 guardedRecursive_e2 guardedRecursive_e3 letBindingRecursive_e1 letBindingRecursive_e2 letBindingRecursive_e3 recordAccessor_e1 recordAccessor_e2 recordAccessor_e3 recordUpdate_e1 recordUpdate_e2 recordUpdate_e3 appSpine_e1 appSpine_e2 appSpine_e3 lambda_e1 lambda_e2 lambda_e3 ifThenElse_e1 ifThenElse_e2 ifThenElse_e3 caseOf_e1 caseOf_e2 caseOf_e3 letIn_e1 letIn_e2 letIn_e3 : Type}
   (f : e1 → e2) (g : e2 → e3) (f_expr : expr_e1 → expr_e2) (g_expr : expr_e2 → expr_e3)
   (f_doBlock : doBlock1 → doBlock2) (g_doBlock : doBlock2 → doBlock3)
   (f_adoBlock : adoBlock1 → adoBlock2) (g_adoBlock : adoBlock2 → adoBlock3)
   (f_guardedRecursive : guardedRecursive_e1 → guardedRecursive_e2) (g_guardedRecursive : guardedRecursive_e2 → guardedRecursive_e3)
   (f_letBindingRecursive : letBindingRecursive_e1 → letBindingRecursive_e2) (g_letBindingRecursive : letBindingRecursive_e2 → letBindingRecursive_e3)
-  (expr : ExprF e1 expr_e1 doBlock1 adoBlock1 guardedRecursive_e1 letBindingRecursive_e1) :
-  expr.map_all (g ∘ f) (g_expr ∘ f_expr) (g_doBlock ∘ f_doBlock) (g_adoBlock ∘ f_adoBlock) (g_guardedRecursive ∘ f_guardedRecursive) (g_letBindingRecursive ∘ f_letBindingRecursive) =
-  (expr.map_all f f_expr f_doBlock f_adoBlock f_guardedRecursive f_letBindingRecursive).map_all g g_expr g_doBlock g_adoBlock g_guardedRecursive g_letBindingRecursive := by
+  (f_recordAccessor : recordAccessor_e1 → recordAccessor_e2) (g_recordAccessor : recordAccessor_e2 → recordAccessor_e3)
+  (f_recordUpdate : recordUpdate_e1 → recordUpdate_e2) (g_recordUpdate : recordUpdate_e2 → recordUpdate_e3)
+  (f_appSpine : appSpine_e1 → appSpine_e2) (g_appSpine : appSpine_e2 → appSpine_e3)
+  (f_lambda : lambda_e1 → lambda_e2) (g_lambda : lambda_e2 → lambda_e3)
+  (f_ifThenElse : ifThenElse_e1 → ifThenElse_e2) (g_ifThenElse : ifThenElse_e2 → ifThenElse_e3)
+  (f_caseOf : caseOf_e1 → caseOf_e2) (g_caseOf : caseOf_e2 → caseOf_e3)
+  (f_letIn : letIn_e1 → letIn_e2) (g_letIn : letIn_e2 → letIn_e3)
+  (expr : ExprF e1 expr_e1 doBlock1 adoBlock1 guardedRecursive_e1 letBindingRecursive_e1 recordAccessor_e1 recordUpdate_e1 appSpine_e1 lambda_e1 ifThenElse_e1 caseOf_e1 letIn_e1) :
+  expr.map_all (g ∘ f) (g_expr ∘ f_expr) (g_doBlock ∘ f_doBlock) (g_adoBlock ∘ f_adoBlock) (g_guardedRecursive ∘ f_guardedRecursive) (g_letBindingRecursive ∘ f_letBindingRecursive) (g_recordAccessor ∘ f_recordAccessor) (g_recordUpdate ∘ f_recordUpdate) (g_appSpine ∘ f_appSpine) (g_lambda ∘ f_lambda) (g_ifThenElse ∘ f_ifThenElse) (g_caseOf ∘ f_caseOf) (g_letIn ∘ f_letIn) =
+  (expr.map_all f f_expr f_doBlock f_adoBlock f_guardedRecursive f_letBindingRecursive f_recordAccessor f_recordUpdate f_appSpine f_lambda f_ifThenElse f_caseOf f_letIn).map_all g g_expr g_doBlock g_adoBlock g_guardedRecursive g_letBindingRecursive g_recordAccessor g_recordUpdate g_appSpine g_lambda g_ifThenElse g_caseOf g_letIn := by
   match expr with
   | Hole n => simp only [map_all]
   | Section t => simp only [map_all]
@@ -1852,37 +1832,13 @@ namespace ExprF
     NonEmptyArray.mk.injEq, Array.map_inj_left, implies_true, and_self]
   | OpName n => simp only [map_all]
   | Negate t e' => simp only [map_all, Function.comp_apply]
-  | RecordAccessor data => simp only [map_all, RecordAccessorF.map, Function.comp_apply]
-  | RecordUpdate e' updates => simp only [map_all, Function.comp_apply, DelimitedNonEmpty.map,
-    Separated.map, RecordUpdateF.map_all_comp, Array.map_map, RecordUpdate.injEq,
-    DelimitedNonEmpty.mk.injEq, Wrapped.mk.injEq, Separated.mk.injEq, Array.map_inj_left,
-    implies_true, and_self]
-  | App fn args =>
-    simp only [map_all, Function.comp_apply, NonEmptyArray.map, AppSpineF.map_all,
-    Type_.map_comp, Array.map_map, App.injEq, NonEmptyArray.mk.injEq, Array.map_inj_left, true_and]
-    split
-    next s e heq =>
-      simp_all only [true_and]
-      intro a a_1
-      split
-      next s_1 e_1 => simp_all only
-      next s_1 t ty => simp_all only
-    next s t ty heq =>
-      simp_all only [true_and]
-      intro a a_1
-      split
-      next s_1 e => simp_all only
-      next s_1 t_1 ty_1 => simp_all only
-  | Lambda data => simp only [map_all, LambdaF.map_all, NonEmptyArray.map, Binder.map_comp,
-    Function.comp_apply, Array.map_map, Lambda.injEq, LambdaF.mk.injEq, NonEmptyArray.mk.injEq,
-    Array.map_inj_left, implies_true, and_self]
-  | If data => simp only [map_all, IfThenElseF.map, Function.comp_apply]
-  | Case data => simp only [map_all, CaseOfF.map_all, Separated.map, Function.comp_apply,
-    NonEmptyArray.map, Binder.map_comp, Array.map_map, Case.injEq, CaseOfF.mk.injEq,
-    Separated.mk.injEq, Array.map_inj_left, implies_true, and_self, NonEmptyArray.mk.injEq,
-    Prod.mk.injEq]
-  | Let data => simp only [map_all, LetInF.map_all, NonEmptyArray.map, Function.comp_apply,
-    Array.map_map]
+  | RecordAccessor data => simp only [map_all, Function.comp_apply]
+  | RecordUpdate e' updates => simp only [map_all, Function.comp_apply, DelimitedNonEmpty.comp_map]
+  | App fn args => simp only [map_all, Function.comp_apply, NonEmptyArray.comp_map]
+  | Lambda data => simp only [map_all, Function.comp_apply]
+  | If data => simp only [map_all, Function.comp_apply]
+  | Case data => simp only [map_all, Function.comp_apply]
+  | Let data => simp only [map_all, Function.comp_apply]
   | Do data => simp only [map_all, Function.comp_apply]
   | Ado data => simp only [map_all, Function.comp_apply]
   | Error d => simp only [map_all, Function.comp_apply]

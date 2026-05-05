@@ -1069,7 +1069,7 @@ instance : LawfulFunctor (TypeF e) where
   id_map t := by simp only [Functor.map, TypeF.map_id]
   comp_map g h t := by simp only [Functor.map, TypeF.map_comp]
 
-generate_fixed inductive Type_ (e : Type) from TypeF
+generate_fixed Type_ (e : Type) from TypeF
   fill type_e with (Type_ e)
   deriving Repr, BEq
 

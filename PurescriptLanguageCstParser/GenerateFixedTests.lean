@@ -22,7 +22,7 @@ inductive Tree (a : Type) : Type where
   deriving Repr, BEq
 -/
 #guard_msgs in
-generate_fixed? inductive Tree (a : Type) from TreeF
+generate_fixed? Tree (a : Type) from TreeF
   fill r with (Tree a)
   deriving Repr, BEq
 
@@ -76,7 +76,7 @@ public inductive Expr : Type where
   | neg (inner : Expr) : Expr
   deriving Repr, BEq-/
 #guard_msgs in
-public generate_fixed? inductive Expr from ExprF
+public generate_fixed? Expr from ExprF
   fill e with Expr
   deriving Repr, BEq
 
@@ -138,11 +138,11 @@ end
 -/
 #guard_msgs in
 generate_fixed_mutual?
-  public generate_fixed inductive Expr from ExprF
+  public generate_fixed Expr from ExprF
     fill e with Expr
     fill s with Stmt
 
-  public generate_fixed inductive Stmt from StmtF
+  public generate_fixed Stmt from StmtF
     fill e with Expr
     fill s with Stmt
 end_generate_fixed_mutual
@@ -216,7 +216,7 @@ public inductive RoseTree (a : Type) : Type where
   deriving Repr, BEq
 -/
 #guard_msgs in
-public generate_fixed? inductive RoseTree (a : Type) from RoseTreeF
+public generate_fixed? RoseTree (a : Type) from RoseTreeF
   fill r with (RoseTree a)
   deriving Repr, BEq
 
@@ -290,13 +290,13 @@ end
 -/
 #guard_msgs in
 generate_fixed_mutual?
-  public generate_fixed structure Metadata (error : Type) from MetadataF
+  public generate_fixed Metadata (error : Type) from MetadataF
     fill e with (Expr error)
     fill m with (Metadata error)
     -- fill error with error
     deriving Repr, BEq
 
-  public generate_fixed inductive Expr (error : Type) from ExprF
+  public generate_fixed Expr (error : Type) from ExprF
     fill e with (Expr error)
     fill m with (Metadata error)
     -- fill error with error
@@ -363,7 +363,7 @@ end
 -/
 #guard_msgs in
 generate_fixed_mutual?
-  public generate_fixed inductive Expr from ExprF -- also test that can export
+  public generate_fixed Expr from ExprF -- also test that can export
     fill e with Expr
 
   public inductive ExprTag where -- also test that can export
@@ -413,7 +413,7 @@ inductive Simple : Type where
   | recS (inner : Simple) : Simple
 -/
 #guard_msgs in
-generate_fixed? inductive Simple from SimpleF
+generate_fixed? Simple from SimpleF
   fill e with Simple
 
 inductive ExprF (e s : Type) where
@@ -437,12 +437,29 @@ end
 -/
 #guard_msgs in
 generate_fixed_mutual?
-  public generate_fixed inductive Expr from ExprF
+  public generate_fixed Expr from ExprF
     fill e with Expr
     fill s with Stmt
-  public generate_fixed inductive Stmt from StmtF
+  public generate_fixed Stmt from StmtF
     fill e with Expr
     fill s with Stmt
 end_generate_fixed_mutual
+
+/--
+error: generate_fixed: functor `_private.PurescriptLanguageCstParser.GenerateFixedTests.0.Test7.ExprF` does not have a parameter named `nonExistent`. Available parameters: `[e, s]`
+-/
+#guard_msgs(error) in
+generate_fixed ExprFail from ExprF
+  fill nonExistent with Unit
+
+/--
+error: Constructor field `s` of `Test7.ExprFail2.recE` contains universe level metavariables at the expression
+  Sort ?u.4
+in its type
+  Sort ?u.4
+-/
+#guard_msgs(error) in
+public generate_fixed ExprFail2 from ExprF
+  fill e with Unit
 
 end Test7

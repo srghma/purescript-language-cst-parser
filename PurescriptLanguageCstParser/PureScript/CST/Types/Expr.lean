@@ -1,4 +1,3 @@
-
 module
 
 import NonEmpty.CorrectByConstruction.Array

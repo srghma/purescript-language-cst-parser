@@ -166,47 +166,68 @@ meta def generateFixedSyntax (stx : Syntax) : CommandElabM Syntax := do
   let fillClauses := stx[7].getArgs
   let deriving?   := stx[8]
 
+  let fName ← resolveGlobalConstNoOverload functorName
+  let env ← getEnv
+  let ci ← getConstInfo fName
+  if !ci.isInductive then
+    throwErrorAt functorName m!"generate_fixed: `{fName}` is not an inductive type"
+  let iv := ci.inductiveVal!
+
+  let mut functorParamNames : Array Name := #[]
+  let mut type := ci.type
+  for _ in [:iv.numParams] do
+    match type with
+    | .forallE name _ body _ =>
+      functorParamNames := functorParamNames.push name
+      type := body
+    | _ => break
+
   let fills : Array (Name × Syntax) ← fillClauses.mapM fun fc => do
     -- fc is a `fillClause` node: "fill" ident "with" term
     let pId  : Ident := ⟨fc[1]⟩
+    let pName := pId.getId
+    if !functorParamNames.contains pName then
+       let paramsStr := ", ".intercalate (functorParamNames.toList.map (·.toString))
+       throwErrorAt pId m!"generate_fixed: functor `{fName}` does not have a parameter named `{pName}`. Available parameters: `[{paramsStr}]`"
     let repl : Syntax := fc[3]
-    return (pId.getId, repl)
+    return (pName, repl)
 
-  let fName ← resolveGlobalConstNoOverload functorName
-  let kwStr :=
-    if kw.isToken "inductive" || (kw.getNumArgs > 0 && kw[0].isToken "inductive") then "inductive"
-    else if kw.isToken "structure" || (kw.getNumArgs > 0 && kw[0].isToken "structure") then "structure"
-    else ""
+  let isStruct ←
+    if kw.isNone then
+      pure (Lean.isStructure env fName)
+    else
+      let k := kw[0]
+      if k.isToken "inductive" then pure false
+      else if k.isToken "structure" then pure true
+      else throwErrorAt k "generate_fixed: expected 'inductive' or 'structure'"
 
   let ids : Array (TSyntax `Lean.Parser.Command.derivingClass) :=
     match findSepBy stx[8] with
     | some cn => cn.getSepArgs.map TSyntax.mk
     | none => #[]
 
-  match kwStr with
-  | "inductive" => do
-      let paramNames := getParamIds params
-      let resultType : Term ← `(term| $fixName $paramNames*)
-      let ctors ← buildCtors fName fills resultType
-      if ids.isEmpty then
-        `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]*)
-      else
-        `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]* deriving $[$ids],*)
-  | "structure" => do
-      let sfields ← buildStructFields fName fills
-      let sfieldsCast : Array (TSyntax [`Lean.Parser.Command.structExplicitBinder, `Lean.Parser.Command.structImplicitBinder, `Lean.Parser.Command.structInstBinder, `Lean.Parser.Command.structSimpleBinder]) :=
-        sfields.map TSyntax.mk
-      if ids.isEmpty then
-        `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]*)
-      else
-        `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]* deriving $[$ids],*)
-  | _ => throwError "generate_fixed: expected 'inductive' or 'structure'"
+  if !isStruct then
+    let paramNames := getParamIds params
+    let resultType : Term ← `(term| $fixName $paramNames*)
+    let ctors ← buildCtors fName fills resultType
+    if ids.isEmpty then
+      `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]*)
+    else
+      `(command| $mods:declModifiers inductive $fixName $[$params]* : Type where $[$ctors]* deriving $[$ids],*)
+  else
+    let sfields ← buildStructFields fName fills
+    let sfieldsCast : Array (TSyntax [`Lean.Parser.Command.structExplicitBinder, `Lean.Parser.Command.structImplicitBinder, `Lean.Parser.Command.structInstBinder, `Lean.Parser.Command.structSimpleBinder]) :=
+      sfields.map TSyntax.mk
+    if ids.isEmpty then
+      `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]*)
+    else
+      `(command| $mods:declModifiers structure $fixName $[$params]* where $[$sfieldsCast]* deriving $[$ids],*)
 
-syntax (name := generateFixed) declModifiers "generate_fixed" fixed_kind ident bracketedBinder*
+syntax (name := generateFixed) declModifiers "generate_fixed" (fixed_kind)? ident bracketedBinder*
      "from" ident fillClause*
      (ppLine Lean.Parser.Command.optDeriving)? : command
 
-syntax (name := generateFixedTrace) declModifiers "generate_fixed?" fixed_kind ident bracketedBinder*
+syntax (name := generateFixedTrace) declModifiers "generate_fixed?" (fixed_kind)? ident bracketedBinder*
      "from" ident fillClause*
      (ppLine Lean.Parser.Command.optDeriving)? : command
 
