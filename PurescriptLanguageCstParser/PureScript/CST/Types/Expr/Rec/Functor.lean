@@ -4,8 +4,8 @@ import NonEmpty.CorrectByConstruction.Array
 import NonEmpty.String
 import Aesop
 public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
-public import PurescriptLanguageCstParser.PureScript.CST.Types.ExprLeafs
-public import PurescriptLanguageCstParser.PureScript.CST.Types.ExprRec
+public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Leafs
+public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Basic
 meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section
@@ -371,3 +371,105 @@ mutual
       omega
     · omega
 end
+
+instance : Functor Expr where map := Expr.map
+-- instance : LawfulFunctor Expr where
+--   map_const := rfl
+--   id_map := Expr.map_id
+--   comp_map := Expr.map_comp
+
+instance : Functor RecordAccessorRecursive where map := RecordAccessorRecursive.map
+-- instance : LawfulFunctor RecordAccessorRecursive where
+--   map_const := rfl
+--   id_map := RecordAccessorRecursive.map_id
+--   comp_map := RecordAccessorRecursive.map_comp
+
+instance : Functor RecordUpdateRecursive where map := RecordUpdateRecursive.map
+-- instance : LawfulFunctor RecordUpdateRecursive where
+--   map_const := rfl
+--   id_map := RecordUpdateRecursive.map_id
+--   comp_map := RecordUpdateRecursive.map_comp
+
+instance : Functor AppSpineRecursive where map := AppSpineRecursive.map
+-- instance : LawfulFunctor AppSpineRecursive where
+--   map_const := rfl
+--   id_map := AppSpineRecursive.map_id
+--   comp_map := AppSpineRecursive.map_comp
+
+instance : Functor LambdaRecursive where map := LambdaRecursive.map
+-- instance : LawfulFunctor LambdaRecursive where
+--   map_const := rfl
+--   id_map := LambdaRecursive.map_id
+--   comp_map := LambdaRecursive.map_comp
+
+instance : Functor IfThenElseRecursive where map := IfThenElseRecursive.map
+-- instance : LawfulFunctor IfThenElseRecursive where
+--   map_const := rfl
+--   id_map := IfThenElseRecursive.map_id
+--   comp_map := IfThenElseRecursive.map_comp
+
+instance : Functor CaseOfRecursive where map := CaseOfRecursive.map
+-- instance : LawfulFunctor CaseOfRecursive where
+--   map_const := rfl
+--   id_map := CaseOfRecursive.map_id
+--   comp_map := CaseOfRecursive.map_comp
+
+instance : Functor GuardedRecursive where map := GuardedRecursive.map
+-- instance : LawfulFunctor GuardedRecursive where
+--   map_const := rfl
+--   id_map := GuardedRecursive.map_id
+--   comp_map := GuardedRecursive.map_comp
+
+instance : Functor GuardedExprRecursive where map := GuardedExprRecursive.map
+-- instance : LawfulFunctor GuardedExprRecursive where
+--   map_const := rfl
+--   id_map := GuardedExprRecursive.map_id
+--   comp_map := GuardedExprRecursive.map_comp
+
+instance : Functor PatternGuardRecursive where map := PatternGuardRecursive.map
+-- instance : LawfulFunctor PatternGuardRecursive where
+--   map_const := rfl
+--   id_map := PatternGuardRecursive.map_id
+--   comp_map := PatternGuardRecursive.map_comp
+
+instance : Functor LetInRecursive where map := LetInRecursive.map
+-- instance : LawfulFunctor LetInRecursive where
+--   map_const := rfl
+--   id_map := LetInRecursive.map_id
+--   comp_map := LetInRecursive.map_comp
+
+instance : Functor LetBindingRecursive where map := LetBindingRecursive.map
+-- instance : LawfulFunctor LetBindingRecursive where
+--   map_const := rfl
+--   id_map := LetBindingRecursive.map_id
+--   comp_map := LetBindingRecursive.map_comp
+
+instance : Functor ValueBindingFieldsRecursive where map := ValueBindingFieldsRecursive.map
+-- instance : LawfulFunctor ValueBindingFieldsRecursive where
+--   map_const := rfl
+--   id_map := ValueBindingFieldsRecursive.map_id
+--   comp_map := ValueBindingFieldsRecursive.map_comp
+
+instance : Functor WhereRecursive where map := WhereRecursive.map
+-- instance : LawfulFunctor WhereRecursive where
+--   map_const := rfl
+--   id_map := WhereRecursive.map_id
+--   comp_map := WhereRecursive.map_comp
+
+instance : Functor DoBlockRecursive where map := DoBlockRecursive.map
+-- instance : LawfulFunctor DoBlockRecursive where
+--   map_const := rfl
+--   id_map := DoBlockRecursive.map_id
+--   comp_map := DoBlockRecursive.map_comp
+
+instance : Functor AdoBlockRecursive where map := AdoBlockRecursive.map
+-- instance : LawfulFunctor AdoBlockRecursive where
+--   map_const := rfl
+--   id_map := AdoBlockRecursive.map_id
+--   comp_map := AdoBlockRecursive.map_comp
+
+instance : Functor DoStatementRecursive where map := DoStatementRecursive.map
+-- instance : LawfulFunctor DoStatementRecursive where
+--   map_const := rfl
+--   id_map := DoStatementRecursive.map_id
+--   comp_map := DoStatementRecursive.map_comp

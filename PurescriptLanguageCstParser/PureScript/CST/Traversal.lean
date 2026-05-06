@@ -1,3 +1,4 @@
+module
 import PurescriptLanguageCstParser.PureScript.CST.Types
 import NonEmpty.CorrectByConstruction.Array
 
@@ -48,15 +49,15 @@ def defaultVisitor : Visitor e id :=
 def traverseWrapped [Applicative f] (k : α → f α) (w : Wrapped α) : f (Wrapped α) :=
   (fun v => { w with value := v }) <$> k w.value
 
-def traverseSeparated [Applicative m] (k : α → m α) (s : Separated α) : m (Separated α) :=
+def traverseSeparated [Monad m] (k : α → m α) (s : Separated α) : m (Separated α) :=
   (fun head tail => { head, tail })
     <$> k s.head
     <*> s.tail.mapM (fun (tok, a) => (tok, ·) <$> k a)
 
-def traverseDelimited [Applicative f] (k : α → f α) : Delimited α → f (Delimited α)
+def traverseDelimited [Monad f] (k : α → f α) : Delimited α → f (Delimited α)
   | .mk w => .mk <$> traverseWrapped (fun opt => opt.mapM (traverseSeparated k)) w
 
-def traverseDelimitedNonEmpty [Applicative f] (k : α → f α)
+def traverseDelimitedNonEmpty [Monad f] (k : α → f α)
     : DelimitedNonEmpty α → f (DelimitedNonEmpty α)
   | .mk w => .mk <$> traverseWrapped (traverseSeparated k) w
 
@@ -67,7 +68,7 @@ def traverseRecordLabeled [Applicative f] (k : α → f α) : RecordLabeled α �
   | .Pun n          => pure (.Pun n)
   | .Field l sep v  => .Field l sep <$> k v
 
-def traverseOneOrDelimited [Applicative f] (k : α → f α) : OneOrDelimited α → f (OneOrDelimited α)
+def traverseOneOrDelimited [Monad f] (k : α → f α) : OneOrDelimited α → f (OneOrDelimited α)
   | .One a   => .One <$> k a
   | .Many m  => .Many <$> traverseDelimitedNonEmpty k m
 

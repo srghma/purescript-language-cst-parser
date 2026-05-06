@@ -738,12 +738,11 @@ instance : LawfulFunctor (TypeVarBindingF name) where
   comp_map g h t := TypeVarBindingF.comp_map g h t
 
 structure RowF (type_e : Type) where
-  labels : Option (Separated (Labeled (Name Label) (type_e)))
+  labels : Option (Separated (Labeled (Name Label) type_e))
   tail : Option (SourceToken × type_e)
   deriving Repr, BEq
 
 namespace RowF
-
 
 @[simp] def map (f : type_e → type_e') : RowF type_e → RowF type_e'
   | { labels, tail } => {
