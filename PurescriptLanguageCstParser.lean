@@ -1,6 +1,7 @@
 module
 
 import PurescriptLanguageCstParser.PureScript.CST.Types
--- import PurescriptLanguageCstParser.PureScript.CST.Traversal
+import PurescriptLanguageCstParser.PureScript.CST.Traversal
+import PurescriptLanguageCstParser.PureScript.CST.Print
 import PurescriptLanguageCstParser.GenerateFixed
 import PurescriptLanguageCstParser.GenerateFixedTests

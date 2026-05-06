@@ -59,6 +59,16 @@ namespace Export
 
 @[simp] theorem map_comp_fun {α β γ : Type} (f : α → β) (g : β → γ) : map (g ∘ f) = map g ∘ map f := by funext e; exact comp_map f g e
 
+@[always_inline, simp] def mapM {m : Type → Type} [Applicative m] {α β : Type} (f : α → m β) (e : Export α) : m (Export β) :=
+  match e with
+  | .Error d => .Error <$> f d
+  | .Value n        => pure (.Value n)
+  | .Op n           => pure (.Op n)
+  | .Type_ n m      => pure (.Type_ n m)
+  | .TypeOp t n     => pure (.TypeOp t n)
+  | .Class t n      => pure (.Class t n)
+  | .Module t n     => pure (.Module t n)
+
 end Export
 
 @[always_inline] instance : Functor Export where
@@ -73,7 +83,7 @@ instance : LawfulFunctor Export where
 structure DataHead (e : Type) where
   keyword : SourceToken
   name : Name Proper
-  parameters : Array (TypeVarBindingF (Name Ident) (Type_ e))
+  parameters : Array (TypeVarBinding (Name Ident) (Type_ e))
   deriving Repr, BEq
 
 namespace DataHead
@@ -96,6 +106,9 @@ instance : LawfulFunctor DataHead where
   map_const := rfl
   id_map := id_map
   comp_map := comp_map
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (h : DataHead α) : m (DataHead β) :=
+  DataHead.mk h.keyword h.name <$> h.parameters.mapM (TypeVarBinding.mapM (Type_.mapM f))
 
 end DataHead
 
@@ -133,6 +146,10 @@ instance : LawfulFunctor DataCtor where
   id_map := id_map
   comp_map := comp_map
 
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (c : DataCtor α) : m (DataCtor β) := do
+  let params ← c.parameters.mapM (Type_.mapM f)
+  pure { c with parameters := params }
+
 end DataCtor
 
 @[always_inline] instance : Functor DataCtor where
@@ -152,7 +169,7 @@ structure ClassHead (e : Type) where
   keyword : SourceToken
   typeConstraint : Option (OneOrDelimited (Type_ e) × SourceToken)
   name : Name Proper
-  parameters : Array (TypeVarBindingF (Name Ident) (Type_ e))
+  parameters : Array (TypeVarBinding (Name Ident) (Type_ e))
   fundependencies : Option (SourceToken × Separated ClassFundep)
   deriving Repr, BEq
 
@@ -179,6 +196,11 @@ instance : LawfulFunctor ClassHead where
   map_const := rfl
   id_map := id_map
   comp_map := comp_map
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (h : ClassHead α) : m (ClassHead β) := do
+  let tc ← h.typeConstraint.mapM (fun (o, t) => (·, t) <$> o.mapM (Type_.mapM f))
+  let params ← h.parameters.mapM (TypeVarBinding.mapM (Type_.mapM f))
+  pure { h with typeConstraint := tc, parameters := params }
 
 end ClassHead
 
@@ -214,6 +236,11 @@ instance : LawfulFunctor InstanceHead where
   map_const := rfl
   id_map := id_map
   comp_map := comp_map
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (h : InstanceHead α) : m (InstanceHead β) := do
+  let tc ← h.constraints.mapM (fun (o, t) => (·, t) <$> o.mapM (Type_.mapM f))
+  let tys ← h.types.mapM (Type_.mapM f)
+  pure { h with constraints := tc, types := tys }
 
 end InstanceHead
 
@@ -291,6 +318,8 @@ def attach {α : Type} (r : RecordLabeled α) : RecordLabeled { x // x ∈ r } :
     r.attach.map (fun x => x.val) = r := by
   cases r <;> rfl
 
+@[always_inline, simp] def mapM {m : Type → Type} [Applicative m] {α β : Type} (f : α → m β) (r : RecordLabeled α) : m (RecordLabeled β) := match r with | .Pun n => pure (.Pun n) | .Field l sep v => .Field l sep <$> f v
+
 end RecordLabeled
 
 @[always_inline] instance : Functor RecordLabeled where
@@ -367,6 +396,24 @@ namespace BinderF
 @[simp] theorem map_binder_e_comp {e binder_e1 binder_e2 binder_e3 : Type} (f : binder_e1 → binder_e2) (g : binder_e2 → binder_e3) (b : BinderF e binder_e1) : b.map_binder_e (g ∘ f) = (b.map_binder_e f).map_binder_e g := by
   rw [map_binder_e, map_binder_e, map_binder_e, ← map_all_comp id id f g]
   rfl
+
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e e' binder_e binder_e' : Type} (f : e → m e') (f_binder : binder_e → m binder_e') (b : BinderF e binder_e) : m (BinderF e' binder_e') :=
+  match b with
+  | Wildcard t => pure (Wildcard t)
+  | Var n => pure (Var n)
+  | Named n t b' => Named n t <$> f_binder b'
+  | Constructor n args => Constructor n <$> args.mapM f_binder
+  | Boolean t v => pure (Boolean t v)
+  | Char t v => pure (Char t v)
+  | NonEmptyString t v => pure (NonEmptyString t v)
+  | Int p t v => pure (Int p t v)
+  | Number p t v => pure (Number p t v)
+  | Array items => Array <$> items.mapM f_binder
+  | Record fields => Record <$> fields.mapM (RecordLabeled.mapM f_binder)
+  | Parens w => Parens <$> w.mapM f_binder
+  | Typed b_e t t_ => Typed <$> f_binder b_e <*> pure t <*> t_.mapM f
+  | Op first ops => Op <$> f_binder first <*> ops.mapM (fun (o, b') => do pure (o, ← f_binder b'))
+  | Error d => Error <$> f d
 
 end BinderF
 
@@ -987,6 +1034,109 @@ instance : LawfulFunctor Binder where
   id_map := map_id
   comp_map := map_comp
 
+
+mutual
+  @[simp] def mapM {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (b : Binder e1) : m (Binder e2) :=
+    match b with
+      | .Wildcard t         => pure (.Wildcard t)
+      | .Var n              => pure (.Var n)
+      | .Named n t b        => .Named n t <$> mapM f b
+      | .Constructor n args => .Constructor n <$> args.attach.mapM (fun ⟨b, _hmem⟩ => mapM f b)
+      | .Boolean t v        => pure (.Boolean t v)
+      | .Char t v           => pure (.Char t v)
+      | .NonEmptyString t v => pure (.NonEmptyString t v)
+      | .Int p t v          => pure (.Int p t v)
+      | .Number p t v       => pure (.Number p t v)
+      | .Array items        => .Array <$> mapMDelimited f items
+      | .Record fields      => .Record <$> mapMDelimitedRecordLabeled f fields
+      | .Parens w           => .Parens <$> mapMWrapped f w
+      | .Typed b t t_       => .Typed <$> mapM f b <*> pure t <*> Type_.mapM f t_
+      | .Op first ops       => .Op <$> mapM f first <*> ops.attach.mapM (fun ⟨⟨n, b⟩, _hmem⟩ => do pure (n, ← mapM f b))
+      | .Error d            => .Error <$> f d
+  termination_by sizeOf b
+  decreasing_by
+    all_goals (simp_all only [Array.sizeOf_spec, Constructor.sizeOf_spec, Named.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one, Op.sizeOf_spec, Parens.sizeOf_spec, Record.sizeOf_spec, Typed.sizeOf_spec]; simp_wf; try omega)
+    · have := Array.sizeOf_lt_of_mem _hmem; omega
+    · have := NonEmptyArray.sizeOf_lt_of_mem _hmem; simp only [Prod.mk.sizeOf_spec, gt_iff_lt] at *; omega
+
+  @[simp] def mapMDelimited {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (d : Delimited (Binder e1)) : m (Delimited (Binder e2)) :=
+    match d with
+    | .mk w => .mk <$> mapMWrappedOptionSeparated f w
+  termination_by sizeOf d
+  decreasing_by all_goals (simp_all only [Delimited.mk.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  @[simp] def mapMWrappedOptionSeparated {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (w : Wrapped (Option (Separated (Binder e1)))) : m (Wrapped (Option (Separated (Binder e2)))) := do
+    let val ← mapMOptionSeparated f w.value
+    pure { w with value := val }
+  termination_by sizeOf w
+  decreasing_by all_goals (simp_all only [Wrapped.sizeOf_value])
+
+  @[simp] def mapMOptionSeparated {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (o : Option (Separated (Binder e1))) : m (Option (Separated (Binder e2))) :=
+    match o with
+    | none => pure none
+    | some s => some <$> mapMSeparated f s
+  termination_by sizeOf o
+  decreasing_by all_goals (simp_all only [Option.some.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  @[simp] def mapMSeparated {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (s : Separated (Binder e1)) : m (Separated (Binder e2)) := do
+    let head ← mapM f s.head
+    let tail ← s.tail.attach.mapM (fun ⟨⟨tok, b⟩, _hmem⟩ => do pure (tok, ← mapM f b))
+    pure { head := head, tail := tail }
+  termination_by sizeOf s
+  decreasing_by
+    simp_wf
+    obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
+    have : b = s.tail[i].2 := by simp only [h]
+    rw [this]
+    exact s.sizeOf_tail_get i hi
+
+  @[simp] def mapMDelimitedRecordLabeled {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (fields : Delimited (RecordLabeled (Binder e1))) : m (Delimited (RecordLabeled (Binder e2))) :=
+    match fields with
+    | .mk w => .mk <$> mapMWrappedOptionSeparatedRecordLabeled f w
+  termination_by sizeOf fields
+  decreasing_by all_goals (simp_all only [Delimited.mk.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  @[simp] def mapMWrappedOptionSeparatedRecordLabeled {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (w : Wrapped (Option (Separated (RecordLabeled (Binder e1))))) : m (Wrapped (Option (Separated (RecordLabeled (Binder e2))))) := do
+    let val ← mapMOptionSeparatedRecordLabeled f w.value
+    pure { w with value := val }
+  termination_by sizeOf w
+  decreasing_by all_goals (simp_all only [Wrapped.sizeOf_value])
+
+  @[simp] def mapMOptionSeparatedRecordLabeled {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (o : Option (Separated (RecordLabeled (Binder e1)))) : m (Option (Separated (RecordLabeled (Binder e2)))) :=
+    match o with
+    | none => pure none
+    | some s => some <$> mapMSeparatedRecordLabeled f s
+  termination_by sizeOf o
+  decreasing_by all_goals (simp_all only [Option.some.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one])
+
+  @[simp] def mapMSeparatedRecordLabeled {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (s : Separated (RecordLabeled (Binder e1))) : m (Separated (RecordLabeled (Binder e2))) := do
+    let head ← mapMRecordLabeled f s.head
+    let tail ← s.tail.attach.mapM (fun ⟨⟨tok, rl⟩, _hmem⟩ => do pure (tok, ← mapMRecordLabeled f rl))
+    pure { head := head, tail := tail }
+  termination_by sizeOf s
+  decreasing_by
+    simp_wf
+    obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
+    have : rl = (s.tail[i]).2 := by simp only [h]
+    rw [this]
+    exact s.sizeOf_tail_get i hi
+
+  @[simp] def mapMRecordLabeled {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (rl : RecordLabeled (Binder e1)) : m (RecordLabeled (Binder e2)) :=
+    match rl with
+    | .Pun n => pure (.Pun n)
+    | .Field l sep v => .Field l sep <$> mapM f v
+  termination_by sizeOf rl
+  decreasing_by
+    simp_wf
+    grind only
+
+  @[simp] def mapMWrapped {e1 e2 : Type} {m} [Monad m] (f : e1 → m e2) (w : Wrapped (Binder e1)) : m (Wrapped (Binder e2)) := do
+    let val ← mapM f w.value
+    pure { w with value := val }
+  termination_by sizeOf w
+  decreasing_by all_goals (simp_all only [Wrapped.sizeOf_value])
+end
+
 end Binder
 
 structure AndToken (α : Type) where
@@ -1006,6 +1156,10 @@ namespace AndToken
 @[simp] theorem functor_map_id {α : Type} : map (id : α → α) = id := by funext e; exact id_map e
 
 @[simp] theorem functor_map_comp {α β γ : Type} (f : α → β) (g : β → γ) : map (g ∘ f) = map g ∘ map f := by funext e; exact comp_map f g e
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (a : AndToken α) : m (AndToken β) := do
+  let v ← f a.value
+  pure { a with value := v }
 
 end AndToken
 --
@@ -1051,6 +1205,11 @@ instance {e : Type} : LawfulFunctor (AppSpineF e) where
   map_const := rfl
   id_map := map_all_id
   comp_map := map_all_comp id id
+
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e1 e2 α β : Type} (f : e1 → m e2) (f_expr : α → m β) (s : AppSpineF e1 α) : m (AppSpineF e2 β) :=
+  match s with
+  | .Term e => .Term <$> f_expr e
+  | .Type_ t ty => .Type_ t <$> ty.mapM f
 
 end AppSpineF
 --
@@ -1157,6 +1316,10 @@ instance : LawfulFunctor RecordAccessorF where
   id_map := id_map
   comp_map := comp_map
 
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (a : RecordAccessorF α) : m (RecordAccessorF β) := do
+  let e ← f a.expr
+  pure { a with expr := e }
+
 end RecordAccessorF
 
 structure LambdaF (e expr_e : Type) where
@@ -1189,6 +1352,11 @@ namespace LambdaF
 @[always_inline, simp] def map_e {e1 e2 α : Type} (f : e1 → e2) (l : LambdaF e1 α) : LambdaF e2 α :=
   l.map_all f id
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e1 e2 α β : Type} (f : e1 → m e2) (f_expr : α → m β) (l : LambdaF e1 α) : m (LambdaF e2 β) := do
+  let binders ← l.binders.mapM (fun b => b.mapM f)
+  let body ← f_expr l.body
+  pure { symbol := l.symbol, binders := binders, arrow := l.arrow, body := body }
+
 end LambdaF
 
 structure IfThenElseF (expr_e : Type) where
@@ -1220,6 +1388,12 @@ instance : LawfulFunctor IfThenElseF where
   map_const := rfl
   id_map := id_map
   comp_map := comp_map
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (i : IfThenElseF α) : m (IfThenElseF β) := do
+  let cond ← f i.cond
+  let true_ ← f i.true_
+  let false_ ← f i.false_
+  pure { i with cond := cond, true_ := true_, false_ := false_ }
 
 end IfThenElseF
 
@@ -1257,6 +1431,11 @@ instance : LawfulFunctor (PatternGuardF e) where
   map_const := rfl
   id_map := map_all_id
   comp_map f g x := map_all_comp id id f g x
+
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e1 e2 α β : Type} (f : e1 → m e2) (f_expr : α → m β) (p : PatternGuardF e1 α) : m (PatternGuardF e2 β) := do
+  let binder ← p.binder.mapM (fun (b, t) => do pure (← b.mapM f, t))
+  let expr ← f_expr p.expr
+  pure { binder := binder, expr := expr }
 
 end PatternGuardF
 
@@ -1315,6 +1494,13 @@ namespace GuardedExprF
   | { bar, patterns, separator, where_ } =>
     simp only [map_all, Separated.map_comp_fun, Function.comp_apply]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {patternGuard_e patternGuard_e' where_e where_e' : Type}
+  (f_patternGuard : patternGuard_e → m patternGuard_e') (f_where : where_e → m where_e')
+  (g : GuardedExprF patternGuard_e where_e) : m (GuardedExprF patternGuard_e' where_e') := do
+  let patterns ← g.patterns.mapM f_patternGuard
+  let where_ ← f_where g.where_
+  pure { bar := g.bar, patterns := patterns, separator := g.separator, where_ := where_ }
+
 end GuardedExprF
 
 -- 2. Guarded depends on Where and GuardExpr
@@ -1345,6 +1531,13 @@ namespace GuardedF
   match gr with
   | Unconditional t w => simp only [map_all, Function.comp_apply]
   | Guarded b => simp only [map_all, NonEmptyArray.map, Function.comp_apply, Array.map_map]
+
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {where_e where_e' guardedExpr_e guardedExpr_e' : Type}
+  (f_where : where_e → m where_e') (f_guardedExpr : guardedExpr_e → m guardedExpr_e')
+  (g : GuardedF where_e guardedExpr_e) : m (GuardedF where_e' guardedExpr_e') :=
+  match g with
+  | Unconditional t w => Unconditional t <$> f_where w
+  | Guarded b => Guarded <$> b.mapM f_guardedExpr
 
 end GuardedF
 
@@ -1377,7 +1570,14 @@ namespace ValueBindingFieldsF
   | { name, binders, guarded } => simp only [map_all, Binder.map_comp, Function.comp_apply,
     Array.map_map, mk.injEq, Array.map_inj_left, implies_true, and_self]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e e' guardedExpr_e guardedExpr_e' : Type}
+  (f : e → m e') (f_guardedExpr : guardedExpr_e → m guardedExpr_e')
+  (v : ValueBindingFieldsF e guardedExpr_e) : m (ValueBindingFieldsF e' guardedExpr_e') := do
+  let binders ← v.binders.mapM (fun b => b.mapM f)
+  let guarded ← f_guardedExpr v.guarded
+  pure { name := v.name, binders := binders, guarded := guarded }
 end ValueBindingFieldsF
+
 -- 4. Where depends on the list of Bindings
 structure WhereF (expr_e letBinding_e : Type) where
   expr     : expr_e
@@ -1408,6 +1608,13 @@ namespace WhereF
     simp_all only [map_all, Function.comp_apply, NonEmptyArray.map, Option.map_map, mk.injEq, true_and]
     ext a : 1
     simp_all only [Option.map_eq_some_iff, Prod.exists, Function.comp_apply, Array.map_map]
+
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {expr_e expr_e' letBinding_e letBinding_e' : Type}
+  (f_expr : expr_e → m expr_e') (f_letBinding : letBinding_e → m letBinding_e')
+  (w : WhereF expr_e letBinding_e) : m (WhereF expr_e' letBinding_e') := do
+  let expr ← f_expr w.expr
+  let bindings ← w.bindings.mapM (fun (t, b) => do pure (t, ← b.mapM f_letBinding))
+  pure { expr := expr, bindings := bindings }
 
 end WhereF
 
@@ -1452,6 +1659,15 @@ namespace LetBindingF
   | Pattern b' t w => simp only [map_all, Binder.map_comp, Function.comp_apply]
   | Error d => simp only [map_all, Function.comp_apply]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e e' valueBindingFields_e valueBindingFields_e' where_e where_e' : Type}
+  (f : e → m e') (f_valueBindingFields : valueBindingFields_e → m valueBindingFields_e') (f_where : where_e → m where_e')
+  (b : LetBindingF e valueBindingFields_e where_e) : m (LetBindingF e' valueBindingFields_e' where_e') :=
+  match b with
+  | Signature l => Signature <$> l.mapM_value (fun t => t.mapM f)
+  | Name fields => Name <$> f_valueBindingFields fields
+  | Pattern b' t w => Pattern <$> b'.mapM f <*> pure t <*> f_where w
+  | Error d => Error <$> f d
+
 end LetBindingF
 
 structure CaseOfF (e expr_e guardedRecursive_e : Type) where
@@ -1487,6 +1703,12 @@ namespace CaseOfF
     NonEmptyArray.map, Binder.map_comp, Array.map_map, mk.injEq, Separated.mk.injEq,
     Array.map_inj_left, implies_true, and_self, NonEmptyArray.mk.injEq, Prod.mk.injEq]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e e' expr_e expr_e' guardedRecursive_e guardedRecursive_e' : Type}
+  (f : e → m e') (f_expr : expr_e → m expr_e') (f_guardedRecursive : guardedRecursive_e → m guardedRecursive_e')
+  (c : CaseOfF e expr_e guardedRecursive_e) : m (CaseOfF e' expr_e' guardedRecursive_e') := do
+  let head ← c.head.mapM f_expr
+  let branches ← c.branches.mapM (fun (b, g) => do pure (← b.mapM (fun b' => b'.mapM f), ← f_guardedRecursive g))
+  pure { keyword := c.keyword, head := head, of := c.of, branches := branches }
 end CaseOfF
 
 structure LetInF (expr_e letBindingRecursive_e : Type) where
@@ -1520,6 +1742,13 @@ namespace LetInF
   match l with
   | { keyword, bindings, in_, body } => simp only [map_all, NonEmptyArray.map, Function.comp_apply,
     Array.map_map]
+
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {expr_e expr_e' letBindingRecursive_e letBindingRecursive_e' : Type}
+  (f_expr : expr_e → m expr_e') (f_letBindingRecursive : letBindingRecursive_e → m letBindingRecursive_e')
+  (l : LetInF expr_e letBindingRecursive_e) : m (LetInF expr_e' letBindingRecursive_e') := do
+  let bindings ← l.bindings.mapM f_letBindingRecursive
+  let body ← f_expr l.body
+  pure { keyword := l.keyword, bindings := bindings, in_ := l.in_, body := body }
 
 end LetInF
 
@@ -1559,6 +1788,14 @@ namespace DoStatementF
   | Bind b' t expr => simp only [map_all, Binder.map_comp, Function.comp_apply]
   | Error d => simp only [map_all, Function.comp_apply]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {e e' expr_e expr_e' letBindingRecursive_e letBindingRecursive_e' : Type}
+  (f : e → m e') (f_expr : expr_e → m expr_e') (f_letBindingRecursive : letBindingRecursive_e → m letBindingRecursive_e')
+  (s : DoStatementF e expr_e letBindingRecursive_e) : m (DoStatementF e' expr_e' letBindingRecursive_e') :=
+  match s with
+  | Let t b => Let t <$> b.mapM f_letBindingRecursive
+  | Discard expr => Discard <$> f_expr expr
+  | Bind b t expr => Bind <$> b.mapM f <*> pure t <*> f_expr expr
+  | Error d => Error <$> f d
 end DoStatementF
 
 structure DoBlockF (doStatement_e : Type) where
@@ -1587,6 +1824,11 @@ namespace DoBlockF
   | { keyword, statements } => simp only [map_all, NonEmptyArray.map, Function.comp_apply,
     Array.map_map]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {doStatement_e doStatement_e' : Type}
+  (f_doStatement : doStatement_e → m doStatement_e')
+  (b : DoBlockF doStatement_e) : m (DoBlockF doStatement_e') := do
+  let statements ← b.statements.mapM f_doStatement
+  pure { keyword := b.keyword, statements := statements }
 end DoBlockF
 
 structure AdoBlockF (expr_e doStatement_e : Type) where
@@ -1619,6 +1861,12 @@ namespace AdoBlockF
   match b with
   | { keyword, statements, in_, result } => simp only [map_all, Function.comp_apply, Array.map_map]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m] {expr_e expr_e' doStatement_e doStatement_e' : Type}
+  (f_expr : expr_e → m expr_e') (f_doStatement : doStatement_e → m doStatement_e')
+  (b : AdoBlockF expr_e doStatement_e) : m (AdoBlockF expr_e' doStatement_e') := do
+  let statements ← b.statements.mapM f_doStatement
+  let result ← f_expr b.result
+  pure { keyword := b.keyword, statements := statements, in_ := b.in_, result := result }
 end AdoBlockF
 
 inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e : Type)
@@ -1654,12 +1902,19 @@ inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursiv
 namespace ExprF
 
 set_option linter.unusedVariables false in
-@[always_inline, simp] def map_all {e e' expr_e expr_e' doBlock doBlock' adoBlock adoBlock' guardedRecursive_e guardedRecursive_e' letBindingRecursive_e letBindingRecursive_e' recordAccessor_e recordAccessor_e' recordUpdate_e recordUpdate_e' appSpine_e appSpine_e' lambda_e lambda_e' ifThenElse_e ifThenElse_e' caseOf_e caseOf_e' letIn_e letIn_e' : Type}
-  (f : e → e') (f_expr : expr_e → expr_e') (f_doBlock : doBlock → doBlock') (f_adoBlock : adoBlock → adoBlock')
-  (f_guardedRecursive : guardedRecursive_e → guardedRecursive_e') (f_letBindingRecursive : letBindingRecursive_e → letBindingRecursive_e')
-  (f_recordAccessor : recordAccessor_e → recordAccessor_e') (f_recordUpdate : recordUpdate_e → recordUpdate_e')
-  (f_appSpine : appSpine_e → appSpine_e') (f_lambda : lambda_e → lambda_e')
-  (f_ifThenElse : ifThenElse_e → ifThenElse_e') (f_caseOf : caseOf_e → caseOf_e')
+@[always_inline, simp] def map_all
+  (f : e → e')
+  (f_expr : expr_e → expr_e')
+  (f_doBlock : doBlock → doBlock')
+  (f_adoBlock : adoBlock → adoBlock')
+  (f_guardedRecursive : guardedRecursive_e → guardedRecursive_e')
+  (f_letBindingRecursive : letBindingRecursive_e → letBindingRecursive_e')
+  (f_recordAccessor : recordAccessor_e → recordAccessor_e')
+  (f_recordUpdate : recordUpdate_e → recordUpdate_e')
+  (f_appSpine : appSpine_e → appSpine_e')
+  (f_lambda : lambda_e → lambda_e')
+  (f_ifThenElse : ifThenElse_e → ifThenElse_e')
+  (f_caseOf : caseOf_e → caseOf_e')
   (f_letIn : letIn_e → letIn_e')
   (expr : ExprF e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e) : ExprF e' expr_e' doBlock' adoBlock' guardedRecursive_e' letBindingRecursive_e' recordAccessor_e' recordUpdate_e' appSpine_e' lambda_e' ifThenElse_e' caseOf_e' letIn_e' :=
   match expr with
@@ -1843,6 +2098,48 @@ set_option linter.unusedVariables false in
   | Ado data => simp only [map_all, Function.comp_apply]
   | Error d => simp only [map_all, Function.comp_apply]
 
+@[always_inline, simp] def mapM_all {m : Type → Type} [Monad m]
+  (f : e → m e')
+  (f_expr : expr_e → m expr_e')
+  (f_doBlock : doBlock → m doBlock')
+  (f_adoBlock : adoBlock → m adoBlock')
+  (f_recordAccessor : recordAccessor_e → m recordAccessor_e')
+  (f_recordUpdate : recordUpdate_e → m recordUpdate_e')
+  (f_appSpine : appSpine_e → m appSpine_e')
+  (f_lambda : lambda_e → m lambda_e')
+  (f_ifThenElse : ifThenElse_e → m ifThenElse_e')
+  (f_caseOf : caseOf_e → m caseOf_e')
+  (f_letIn : letIn_e → m letIn_e')
+  (expr : ExprF e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursive_e recordAccessor_e recordUpdate_e appSpine_e lambda_e ifThenElse_e caseOf_e letIn_e) : m (ExprF e' expr_e' doBlock' adoBlock' guardedRecursive_e' letBindingRecursive_e' recordAccessor_e' recordUpdate_e' appSpine_e' lambda_e' ifThenElse_e' caseOf_e' letIn_e') :=
+  match expr with
+  | Hole n => pure (Hole n)
+  | Section t => pure (Section t)
+  | Ident n => pure (Ident n)
+  | Constructor n => pure (Constructor n)
+  | Boolean t v => pure (Boolean t v)
+  | Char t v => pure (Char t v)
+  | NonEmptyString t v => pure (NonEmptyString t v)
+  | Int t v => pure (Int t v)
+  | Number t v => pure (Number t v)
+  | Array items => Array <$> items.mapM f_expr
+  | Record fields => Record <$> fields.mapM (fun r => r.mapM f_expr)
+  | Parens wrapped => Parens <$> wrapped.mapM f_expr
+  | Typed e' t ty => Typed <$> f_expr e' <*> pure t <*> ty.mapM f
+  | Infix h t => Infix <$> f_expr h <*> t.mapM (fun (w, e') => do pure (← w.mapM f_expr, ← f_expr e'))
+  | Op h o => Op <$> f_expr h <*> o.mapM (fun (n, e') => do pure (n, ← f_expr e'))
+  | OpName n => pure (OpName n)
+  | Negate t e' => Negate t <$> f_expr e'
+  | RecordAccessor data => RecordAccessor <$> f_recordAccessor data
+  | RecordUpdate e' updates => RecordUpdate <$> f_expr e' <*> updates.mapM f_recordUpdate
+  | App fn args => App <$> f_expr fn <*> args.mapM f_appSpine
+  | Lambda data => Lambda <$> f_lambda data
+  | If data => If <$> f_ifThenElse data
+  | Case data => Case <$> f_caseOf data
+  | Let data => Let <$> f_letIn data
+  | Do data => Do <$> f_doBlock data
+  | Ado data => Ado <$> f_adoBlock data
+  | Error d => Error <$> f d
+
 end ExprF
 
 inductive Foreign (e : Type)
@@ -1874,6 +2171,12 @@ instance : LawfulFunctor Foreign where
   map_const := rfl
   id_map := id_map
   comp_map := comp_map
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (o : Foreign α) : m (Foreign β) :=
+  match o with
+  | .Value l => .Value <$> l.mapM_value (fun t => t.mapM f)
+  | .Data k l => .Data k <$> l.mapM_value (fun t => t.mapM f)
+  | .Kind k n => pure (.Kind k n)
 
 end Foreign
 
@@ -1940,6 +2243,8 @@ namespace Import
 
 @[simp] theorem functor_map_comp {α β γ : Type} (f : α → β) (g : β → γ) : map (g ∘ f) = map g ∘ map f := by funext i; exact comp_map f g i
 
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (i : Import α) : m (Import β) := match i with | .Value n => pure (.Value n) | .Op n => pure (.Op n) | .Type_ n m => pure (.Type_ n m) | .TypeOp t n => pure (.TypeOp t n) | .Class t n => pure (.Class t n) | .Error d => .Error <$> f d
+
 end Import
 
 @[always_inline] instance : Functor Import where
@@ -1977,6 +2282,10 @@ instance : LawfulFunctor ImportDecl where
   map_const := rfl
   id_map := id_map
   comp_map := comp_map
+
+def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (i : ImportDecl α) : m (ImportDecl β) := do
+  let list ← i.importList.mapM (fun (o, d) => (o, ·) <$> d.mapM (Import.mapM f))
+  pure { i with importList := list }
 
 end ImportDecl
 
@@ -2021,7 +2330,11 @@ instance : LawfulFunctor ModuleHeader where
   id_map := id_map
   comp_map := comp_map
 
-end ModuleHeader
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (m_ : ModuleHeader α) : m (ModuleHeader β) := do
+  let exps ← m_.exports.mapM (·.mapM (Export.mapM f))
+  let imps ← m_.imports.mapM (ImportDecl.mapM f)
+  pure { m_ with exports := exps, imports := imps }
 
+end ModuleHeader
 
 end PureScript.CST.Types

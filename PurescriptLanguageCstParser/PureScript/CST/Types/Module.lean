@@ -7,6 +7,7 @@ public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
 public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Leafs
 public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Basic
 public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.LawfulFunctorMapId
+public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.MapM
 meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section
@@ -37,18 +38,23 @@ namespace InstanceBinding
   rfl
   simp_all only [map, ValueBindingFieldsRecursive.map.eq_1, Binder.map_id, Array.map_subtype, Array.unattach_attach,
     Array.map_id_fun', id_eq, Name.injEq]
-  sorry
+  grind?
 
 @[simp] theorem map_comp {e1 e2 e3 : Type} (f : e1 → e2) (g : e2 → e3) (i : InstanceBinding e1) : i.map (g ∘ f) = (i.map f).map g := by
   cases i <;> simp only [map, Type_.map_comp, Signature.injEq]
   rfl
-  sorry
+  grind?
 
 instance : Functor InstanceBinding where map := map
 instance : LawfulFunctor InstanceBinding where
   map_const := rfl
   id_map := map_id
   comp_map := map_comp
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (i : InstanceBinding α) : m (InstanceBinding β) :=
+  match i with
+  | .Signature l => .Signature <$> l.mapM_value (Type_.mapM f)
+  | .Name fields => .Name <$> ValueBindingFieldsRecursive.mapM f fields
 
 end InstanceBinding
 
@@ -70,17 +76,22 @@ namespace Instance
     Array.map_id_fun, NonEmptyArray.map, InstanceBinding.map, Type_.map_id,
     ValueBindingFieldsRecursive.map.eq_1, Binder.map_id, Array.map_subtype, Array.unattach_attach,
     Array.map_id_fun', mk.injEq, true_and]
-  sorry
+  grind?
 
 @[simp] theorem map_comp {e1 e2 e3 : Type} (f : e1 → e2) (g : e2 → e3) (i : Instance e1) : i.map (g ∘ f) = (i.map f).map g := by
   cases i
-  sorry
+  grind?
 
 instance : Functor Instance where map := map
 instance : LawfulFunctor Instance where
   map_const := rfl
   id_map := map_id
   comp_map := map_comp
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (i : Instance α) : m (Instance β) := do
+  let head ← InstanceHead.mapM f i.head
+  let body ← i.body.mapM (fun (t, b) => do pure (t, ← b.mapM (InstanceBinding.mapM f)))
+  pure { head := head, body := body }
 
 end Instance
 
@@ -171,7 +182,7 @@ namespace Declaration
       id_eq, Array.map_id_fun, NonEmptyArray.map, InstanceBinding.map, Type_.map_id,
       ValueBindingFieldsRecursive.map.eq_1, Binder.map_id, Array.map_subtype, Array.unattach_attach, Array.map_id_fun',
       InstanceChain.injEq]
-    sorry
+    grind?
   · simp_all only [map, InstanceHead.map, functor_map_id, id_map, Option.map_id_fun', id_eq, Array.map_id_fun]
   ·
     simp_all only [map, Type_.map_id, KindSignature.injEq, true_and]
@@ -182,7 +193,7 @@ namespace Declaration
   ·
     simp_all only [map, ValueBindingFieldsRecursive.map.eq_1, Binder.map_id, Array.map_subtype, Array.unattach_attach,
       Array.map_id_fun', id_eq, Value.injEq]
-    sorry
+    grind?
   · simp_all only [map]
   ·
     simp_all only [map, Foreign.map, functor_map_id, id_map, Foreign.injEq, true_and]
@@ -254,7 +265,7 @@ namespace Declaration
       obtain ⟨fst, snd⟩ := a
       simp_all only [Prod.mk.injEq]
       rfl
-  · sorry
+  · grind?
   ·
     simp_all only [map, InstanceHead.map, functor_map_comp, Function.comp_apply, Functor.map_map, Option.map_map,
       Array.map_map, Derive.injEq, InstanceHead.mk.injEq, and_self, and_true, true_and]
@@ -266,7 +277,7 @@ namespace Declaration
   ·
     simp_all only [map, Type_.map_comp, Signature.injEq]
     rfl
-  · sorry
+  · grind?
   · simp_all only [map]
   ·
     simp_all only [map, Foreign.map, functor_map_comp, Function.comp_apply, Functor.map_map, Foreign.injEq, true_and]
@@ -283,6 +294,22 @@ instance : LawfulFunctor Declaration where
   id_map := map_id
   comp_map := map_comp
 
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (d : Declaration α) : m (Declaration β) :=
+  match d with
+  | Data h s => Data <$> DataHead.mapM f h <*> s.mapM (fun (t, sep) => do pure (t, ← sep.mapM (DataCtor.mapM f)))
+  | Type_ h t ty => Type_ <$> DataHead.mapM f h <*> pure t <*> Type_.mapM f ty
+  | Newtype h t n ty => Newtype <$> DataHead.mapM f h <*> pure t <*> pure n <*> Type_.mapM f ty
+  | Class h s => Class <$> ClassHead.mapM f h <*> s.mapM (fun (t, b) => do pure (t, ← b.mapM (fun l => l.mapM_value (Type_.mapM f))))
+  | InstanceChain s => InstanceChain <$> s.mapM (Instance.mapM f)
+  | Derive k o h => Derive k o <$> InstanceHead.mapM f h
+  | KindSignature t l => KindSignature t <$> l.mapM_value (Type_.mapM f)
+  | Signature l => Signature <$> l.mapM_value (Type_.mapM f)
+  | Value fields => Value <$> ValueBindingFieldsRecursive.mapM f fields
+  | Fixity fields => pure (Fixity fields)
+  | Foreign t1 t2 fr => Foreign t1 t2 <$> Foreign.mapM f fr
+  | Role t1 t2 n r => pure (Role t1 t2 n r)
+  | Error d' => Error <$> f d'
+
 end Declaration
 
 ---------------------------------------------------------------------------------------------------------
@@ -293,7 +320,24 @@ structure ModuleBody (e : Type) where
   end_ : SourcePos
   deriving Repr, BEq
 
+namespace ModuleBody
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (b : ModuleBody α) : m (ModuleBody β) := do
+  let decls ← b.decls.mapM (Declaration.mapM f)
+  pure { decls := decls, trailingComments := b.trailingComments, end_ := b.end_ }
+
+end ModuleBody
+
 structure Module (e : Type) where
   header : ModuleHeader e
   body : ModuleBody e
   deriving Repr, BEq
+
+namespace Module
+
+@[always_inline, simp] def mapM {m : Type → Type} [Monad m] {α β : Type} (f : α → m β) (m_ : Module α) : m (Module β) := do
+  let header ← ModuleHeader.mapM f m_.header
+  let body ← ModuleBody.mapM f m_.body
+  pure { header := header, body := body }
+
+end Module

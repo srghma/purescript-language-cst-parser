@@ -30,84 +30,44 @@ abbrev PureRewriteWithContext (c e : Type) (g : Type → Type) :=
 -- Visitor record
 --------------------------------------------------------------------
 
-structure Visitor (e : Type) (f : Type → Type) where
-  onBinder : Binder e → f (Binder e)
-  onExpr   : Expr e   → f (Expr e)
-  onType   : Type_ e  → f (Type_ e)
-  onDecl   : Declaration e → f (Declaration e)
+structure Visitor (e : Type) (m : Type → Type) where
+  onBinder : Binder e → m (Binder e)
+  onExpr   : Expr e   → m (Expr e)
+  onType   : Type_ e  → m (Type_ e)
+  onDecl   : Declaration e → m (Declaration e)
 
-def defaultVisitorM [Applicative f] : Visitor e f :=
+def defaultVisitorM [Applicative m] : Visitor e m :=
   { onBinder := pure, onExpr := pure, onType := pure, onDecl := pure }
 
-def defaultVisitor : Visitor e id :=
-  { onBinder := id, onExpr := id, onType := id, onDecl := id }
-
---------------------------------------------------------------------
--- Stateless helpers
---------------------------------------------------------------------
-
-def traverseWrapped [Applicative f] (k : α → f α) (w : Wrapped α) : f (Wrapped α) :=
-  (fun v => { w with value := v }) <$> k w.value
-
-def traverseSeparated [Monad m] (k : α → m α) (s : Separated α) : m (Separated α) :=
-  (fun head tail => { head, tail })
-    <$> k s.head
-    <*> s.tail.mapM (fun (tok, a) => (tok, ·) <$> k a)
-
-def traverseDelimited [Monad f] (k : α → f α) : Delimited α → f (Delimited α)
-  | .mk w => .mk <$> traverseWrapped (fun opt => opt.mapM (traverseSeparated k)) w
-
-def traverseDelimitedNonEmpty [Monad f] (k : α → f α)
-    : DelimitedNonEmpty α → f (DelimitedNonEmpty α)
-  | .mk w => .mk <$> traverseWrapped (traverseSeparated k) w
-
-def traverseLabeled [Applicative f] (k : β → f β) (l : Labeled α β) : f (Labeled α β) :=
-  (fun v => { l with value := v }) <$> k l.value
-
-def traverseRecordLabeled [Applicative f] (k : α → f α) : RecordLabeled α → f (RecordLabeled α)
-  | .Pun n          => pure (.Pun n)
-  | .Field l sep v  => .Field l sep <$> k v
-
-def traverseOneOrDelimited [Monad f] (k : α → f α) : OneOrDelimited α → f (OneOrDelimited α)
-  | .One a   => .One <$> k a
-  | .Many m  => .Many <$> traverseDelimitedNonEmpty k m
+def defaultVisitor : Visitor e Id :=
+  { onBinder := pure, onExpr := pure, onType := pure, onDecl := pure }
 
 --------------------------------------------------------------------
 -- Type traversal
 --------------------------------------------------------------------
 
 section TypeTraversal
-variable {e : Type} {f : Type → Type} [Applicative f]
+variable {e : Type} {m : Type → Type} [Monad m]
 
-def traverseRowF (k : Visitor e f) (r : RowF e (Type_ e)) : f (RowF e (Type_ e)) :=
-  (fun labels tail => { labels, tail })
-    <$> r.labels.mapM (traverseSeparated (traverseLabeled k.onType))
-    <*> r.tail.mapM (fun (tok, t) => (tok, ·) <$> k.onType t)
-
-def traverseTypeVarBindingF (k : Visitor e f) {a : Type}
-    : TypeVarBindingF a (Type_ e) → f (TypeVarBindingF a (Type_ e))
-  | .Kinded w => .Kinded <$> traverseWrapped (traverseLabeled k.onType) w
-  | .Name n   => pure (.Name n)
-
-def traverseType (k : Visitor e f) : Type_ e → f (Type_ e)
-  | .mk t => .mk <$> go t
-  where
-    go : TypeF e (Type_ e) → f (TypeF e (Type_ e))
-      | .Row w          => .Row    <$> traverseWrapped (traverseRowF k) w
-      | .Record w       => .Record <$> traverseWrapped (traverseRowF k) w
-      | .Forall o bs c body =>
-            .Forall o
-              <$> bs.mapM (traverseTypeVarBindingF k)
-              <*> pure c
-              <*> k.onType body
-      | .Kinded t1 sep t2   => .Kinded <$> k.onType t1 <*> pure sep <*> k.onType t2
-      | .App t args         => .App    <$> k.onType t  <*> args.mapM k.onType
-      | .Op t ops           => .Op     <$> k.onType t
-                                       <*> ops.mapM (fun (op, t2) => (op, ·) <$> k.onType t2)
-      | .Arrow t1 tok t2    => .Arrow  <$> k.onType t1 <*> pure tok <*> k.onType t2
-      | .Constrained t1 tok t2 => .Constrained <$> k.onType t1 <*> pure tok <*> k.onType t2
-      | .Parens w           => .Parens <$> traverseWrapped k.onType w
-      | t                   => pure t
+def traverseType (k : Visitor e m) : Type_ e → m (Type_ e)
+  | .Var n                 => pure (.Var n)
+  | .Constructor n         => pure (.Constructor n)
+  | .Wildcard t            => pure (.Wildcard t)
+  | .Hole n                => pure (.Hole n)
+  | .NonEmptyString t v    => pure (.NonEmptyString t v)
+  | .Int p t v             => pure (.Int p t v)
+  | .Row w                 => .Row    <$> w.mapM (fun r => r.mapM k.onType)
+  | .Record w              => .Record <$> w.mapM (fun r => r.mapM k.onType)
+  | .Forall o bs c body    => .Forall o <$> bs.mapM (fun b => b.mapM k.onType) <*> pure c <*> k.onType body
+  | .Kinded t1 sep t2      => .Kinded <$> k.onType t1 <*> pure sep <*> k.onType t2
+  | .App t args            => .App    <$> k.onType t  <*> args.mapM k.onType
+  | .Op t ops              => .Op     <$> k.onType t  <*> ops.mapM (fun (op, t2) => (op, ·) <$> k.onType t2)
+  | .OpName n              => pure (.OpName n)
+  | .Arrow t1 tok t2       => .Arrow  <$> k.onType t1 <*> pure tok <*> k.onType t2
+  | .ArrowName t           => pure (.ArrowName t)
+  | .Constrained t1 tok t2 => .Constrained <$> k.onType t1 <*> pure tok <*> k.onType t2
+  | .Parens w              => .Parens <$> w.mapM k.onType
+  | .Error err             => pure (.Error err)
 
 end TypeTraversal
 
@@ -116,26 +76,24 @@ end TypeTraversal
 --------------------------------------------------------------------
 
 section BinderTraversal
-variable {e : Type} {f : Type → Type} [Applicative f]
+variable {e : Type} {m : Type → Type} [Monad m]
 
-def traverseRecordUpdateF (k : Visitor e f)
-    : RecordUpdateF e (Expr e) → f (RecordUpdateF e (Expr e))
-  | .Leaf l tok ex  => .Leaf l tok <$> k.onExpr ex
-  | .Branch l upds  => .Branch l   <$> traverseDelimitedNonEmpty (traverseRecordUpdateF k) upds
-
-def traverseBinder (k : Visitor e f) : Binder e → f (Binder e)
-  | .mk b => .mk <$> go b
-  where
-    go : BinderF e (Binder e) → f (BinderF e (Binder e))
-      | .Named n tok b    => .Named n tok <$> k.onBinder b
-      | .Constructor n bs => .Constructor n <$> bs.mapM k.onBinder
-      | .Array items      => .Array  <$> traverseDelimited k.onBinder items
-      | .Record fields    => .Record <$> traverseDelimited (traverseRecordLabeled k.onBinder) fields
-      | .Parens w         => .Parens <$> traverseWrapped k.onBinder w
-      | .Typed b tok t    => .Typed  <$> k.onBinder b <*> pure tok <*> k.onType t
-      | .Op first ops     => .Op     <$> k.onBinder first
-                                     <*> ops.mapM (fun (op, b) => (op, ·) <$> k.onBinder b)
-      | b                 => pure b
+def traverseBinder (k : Visitor e m) : Binder e → m (Binder e)
+  | .Wildcard t         => pure (.Wildcard t)
+  | .Var n              => pure (.Var n)
+  | .Named n tok b      => .Named n tok <$> k.onBinder b
+  | .Constructor n bs   => .Constructor n <$> bs.attach.mapM (fun ⟨b, _h_mem⟩ => k.onBinder b)
+  | .Boolean t v        => pure (.Boolean t v)
+  | .Char t v           => pure (.Char t v)
+  | .NonEmptyString t v => pure (.NonEmptyString t v)
+  | .Int p t v          => pure (.Int p t v)
+  | .Number p t v       => pure (.Number p t v)
+  | .Array items        => .Array  <$> items.mapM k.onBinder
+  | .Record fields      => .Record <$> fields.mapM (fun rl => rl.mapM k.onBinder)
+  | .Parens w           => .Parens <$> w.mapM k.onBinder
+  | .Typed b tok t      => .Typed  <$> k.onBinder b <*> pure tok <*> k.onType t
+  | .Op first ops       => .Op     <$> k.onBinder first <*> ops.attach.mapM (fun ⟨(op, b), _h_mem⟩ => (op, ·) <$> k.onBinder b)
+  | .Error err          => pure (.Error err)
 
 end BinderTraversal
 
@@ -144,156 +102,156 @@ end BinderTraversal
 --------------------------------------------------------------------
 
 section ExprTraversal
-variable {e : Type} {f : Type → Type} [Applicative f]
-
-def traversePatternGuardF (k : Visitor e f)
-    (pg : PatternGuardF e (Expr e)) : f (PatternGuardF e (Expr e)) :=
-  (fun binder expr => { binder, expr })
-    <$> pg.binder.mapM (fun (b, tok) => (·, tok) <$> k.onBinder b)
-    <*> k.onExpr pg.expr
-
-def traverseAppSpineF (k : Visitor e f)
-    : AppSpineF e (Expr e) → f (AppSpineF e (Expr e))
-  | .Type_ tok t => .Type_ tok <$> k.onType t
-  | .Term ex     => .Term      <$> k.onExpr ex
-
-def traverseLambdaF (k : Visitor e f) (l : LambdaF e (Expr e)) : f (LambdaF e (Expr e)) :=
-  (fun binders body => { l with binders, body })
-    <$> l.binders.mapM k.onBinder
-    <*> k.onExpr l.body
-
-def traverseIfThenElseF (k : Visitor e f) (i : IfThenElseF (Expr e)) : f (IfThenElseF (Expr e)) :=
-  (fun cond true_ false_ => { i with cond, true_, false_ })
-    <$> k.onExpr i.cond
-    <*> k.onExpr i.true_
-    <*> k.onExpr i.false_
-
-def traverseRecordAccessorF (k : Visitor e f)
-    (ra : RecordAccessorF (Expr e)) : f (RecordAccessorF (Expr e)) :=
-  (fun expr => { ra with expr }) <$> k.onExpr ra.expr
+variable {e : Type} {m : Type → Type} [Monad m]
 
 mutual
 
-  -- Expr
-  def traverseExpr (k : Visitor e f) : Expr e → f (Expr e)
-    | .mk ex => .mk <$> traverseExprF k ex
+  def traverseExpr (k : Visitor e m) : Expr e → m (Expr e)
+    | .Hole n => pure (.Hole n)
+    | .Section t => pure (.Section t)
+    | .Ident n => pure (.Ident n)
+    | .Constructor n => pure (.Constructor n)
+    | .Boolean t v => pure (.Boolean t v)
+    | .Char t v => pure (.Char t v)
+    | .NonEmptyString t v => pure (.NonEmptyString t v)
+    | .Int t v => pure (.Int t v)
+    | .Number t v => pure (.Number t v)
+    | .Array items => .Array <$> items.mapM k.onExpr
+    | .Record fields => .Record <$> fields.mapM (fun rl => rl.mapM k.onExpr)
+    | .Parens w => .Parens <$> w.mapM k.onExpr
+    | .Typed ex tok t => .Typed <$> k.onExpr ex <*> pure tok <*> k.onType t
+    | .Infix head tail => .Infix <$> k.onExpr head <*> tail.attach.mapM (fun ⟨(w, ex), _h_mem⟩ => (·, ·) <$> w.mapM k.onExpr <*> k.onExpr ex)
+    | .Op head ops => .Op <$> k.onExpr head <*> ops.attach.mapM (fun ⟨(op, ex), _h_mem⟩ => (op, ·) <$> k.onExpr ex)
+    | .OpName n => pure (.OpName n)
+    | .Negate tok ex => .Negate tok <$> k.onExpr ex
+    | .RecordAccessor ra => .RecordAccessor <$> traverseRecordAccessor k ra
+    | .RecordUpdate ex upds => .RecordUpdate <$> k.onExpr ex <*> upds.attach.mapM (fun ⟨ru, _h_mem⟩ => traverseRecordUpdate k ru)
+    | .App fn args => .App <$> k.onExpr fn <*> args.attach.mapM (fun ⟨arg, _h_mem⟩ => traverseAppSpine k arg)
+    | .Lambda l => .Lambda <$> traverseLambda k l
+    | .If i => .If <$> traverseIfThenElse k i
+    | .Case c => .Case <$> traverseCaseOf k c
+    | .Let l => .Let <$> traverseLetIn k l
+    | .Do db => .Do <$> traverseDoBlock k db
+    | .Ado ab => .Ado <$> traverseAdoBlock k ab
+    | .Error err => pure (.Error err)
 
-  def traverseExprF (k : Visitor e f)
-      : ExprF e (Expr e) (DoBlockRecursive e) (AdoBlockRecursive e)
-               (LetBindingRecursive e) (GuardedRecursive e)
-      → f (ExprF e (Expr e) (DoBlockRecursive e) (AdoBlockRecursive e)
-                   (LetBindingRecursive e) (GuardedRecursive e))
-    | .Array items      => .Array  <$> traverseDelimited k.onExpr items
-    | .Record fields    => .Record <$> traverseDelimited (traverseRecordLabeled k.onExpr) fields
-    | .Parens w         => .Parens <$> traverseWrapped k.onExpr w
-    | .Typed ex tok t   => .Typed  <$> k.onExpr ex <*> pure tok <*> k.onType t
-    | .Infix head tail  =>
-        .Infix <$> k.onExpr head
-               <*> tail.mapM (fun (w, ex) => (·, ·) <$> traverseWrapped k.onExpr w <*> k.onExpr ex)
-    | .Op head ops      =>
-        .Op <$> k.onExpr head
-            <*> ops.mapM (fun (op, ex) => (op, ·) <$> k.onExpr ex)
-    | .Negate tok ex    => .Negate tok <$> k.onExpr ex
-    | .RecordAccessor ra =>
-        .RecordAccessor <$> traverseRecordAccessorF k ra
-    | .RecordUpdate ex upds =>
-        .RecordUpdate <$> k.onExpr ex
-                      <*> traverseDelimitedNonEmpty (traverseRecordUpdateF k) upds
-    | .App fn args      =>
-        .App <$> k.onExpr fn <*> args.mapM (traverseAppSpineF k)
-    | .Lambda l         => .Lambda <$> traverseLambdaF k l
-    | .If i             => .If     <$> traverseIfThenElseF k i
-    | .Case c           => .Case   <$> traverseCaseOfF k c
-    | .Let l            => .Let    <$> traverseLetInF k l
-    | .Do db            => .Do     <$> traverseDoBlockRecursive k db
-    | .Ado ab           => .Ado    <$> traverseAdoBlockRecursive k ab
-    | ex                => pure ex
+  def traverseRecordAccessor (k : Visitor e m) (ra : RecordAccessorRecursive e) : m (RecordAccessorRecursive e) :=
+    (fun expr => { ra with expr }) <$> k.onExpr ra.expr
 
-  -- CaseOf
-  def traverseCaseOfF (k : Visitor e f) (c : CaseOfF e (Expr e) (GuardedRecursive e))
-      : f (CaseOfF e (Expr e) (GuardedRecursive e)) :=
-    (fun head branches => { c with head, branches })
-      <$> traverseSeparated k.onExpr c.head
-      <*> c.branches.mapM (fun (binders, guarded) =>
-            (·, ·) <$> traverseSeparated k.onBinder binders
-                   <*> traverseGuarded k guarded)
+  def traverseRecordUpdate (k : Visitor e m) (ru : RecordUpdateRecursive e) : m (RecordUpdateRecursive e) :=
+    match ru with
+    | .Leaf l tok ex => .Leaf l tok <$> k.onExpr ex
+    | .Branch l upds => .Branch l <$> upds.attach.mapM (fun ⟨u, _h_mem⟩ => traverseRecordUpdate k u)
+  termination_by sizeOf ru
+  decreasing_by
+    all_goals simp_wf
+    have h := DelimitedNonEmpty.sizeOf_attach_elem upds ⟨u, _h_mem⟩
+    dsimp only at h
+    omega
 
-  -- LetIn
-  def traverseLetInF (k : Visitor e f) (l : LetInF e (Expr e) (LetBindingRecursive e))
-      : f (LetInF e (Expr e) (LetBindingRecursive e)) :=
-    (fun bindings body => { l with bindings, body })
-      <$> l.bindings.mapM (traverseLetBinding k)
+  def traverseAppSpine (k : Visitor e m) (s : AppSpineRecursive e) : m (AppSpineRecursive e) :=
+    match s with
+    | .Type_ tok t => .Type_ tok <$> k.onType t
+    | .Term ex     => .Term      <$> k.onExpr ex
+
+  def traverseLambda (k : Visitor e m) (l : LambdaRecursive e) : m (LambdaRecursive e) :=
+    (fun binders body => { l with binders, body })
+      <$> l.binders.mapM k.onBinder
       <*> k.onExpr l.body
 
-  -- LetBinding
-  def traverseLetBinding (k : Visitor e f) : LetBindingRecursive e → f (LetBindingRecursive e)
-    | .mk lb => .mk <$> traverseLetBindingF k lb
+  def traverseIfThenElse (k : Visitor e m) (i : IfThenElseRecursive e) : m (IfThenElseRecursive e) :=
+    (fun cond true_ false_ => { i with cond, true_, false_ })
+      <$> k.onExpr i.cond
+      <*> k.onExpr i.true_
+      <*> k.onExpr i.false_
 
-  def traverseLetBindingF (k : Visitor e f)
-      : LetBindingF e (Expr e) (ValueBindingFieldsRecursive e) (WhereRecursive e)
-      → f (LetBindingF e (Expr e) (ValueBindingFieldsRecursive e) (WhereRecursive e))
-    | .Signature sig        => .Signature <$> traverseLabeled k.onType sig
-    | .Name fields          => .Name      <$> traverseValueBindingFields k fields
-    | .Pattern b tok w      => .Pattern   <$> k.onBinder b <*> pure tok <*> traverseWhere k w
-    | .Error err            => pure (.Error err)
+  def traverseCaseOf (k : Visitor e m) (c : CaseOfRecursive e) : m (CaseOfRecursive e) :=
+    (fun head branches => { c with head, branches })
+      <$> c.head.mapM k.onExpr
+      <*> c.branches.attach.mapM (fun ⟨(binders, guarded), _h_mem⟩ =>
+            (·, ·) <$> binders.mapM k.onBinder
+                   <*> traverseGuarded k guarded)
 
-  -- Where
-  def traverseWhere (k : Visitor e f) : WhereRecursive e → f (WhereRecursive e)
-    | .mk w => .mk <$> traverseWhereF k w
+  def traverseLetIn (k : Visitor e m) (l : LetInRecursive e) : m (LetInRecursive e) :=
+    (fun bindings body => { l with bindings, body })
+      <$> l.bindings.attach.mapM (fun ⟨lb, _h_mem⟩ => traverseLetBinding k lb)
+      <*> k.onExpr l.body
 
-  def traverseWhereF (k : Visitor e f) (w : WhereF e (Expr e) (LetBindingRecursive e))
-      : f (WhereF e (Expr e) (LetBindingRecursive e)) :=
-    (fun expr bindings => { expr, bindings })
-      <$> k.onExpr w.expr
-      <*> w.bindings.mapM (fun (tok, lbs) => (tok, ·) <$> lbs.mapM (traverseLetBinding k))
+  def traverseLetBinding (k : Visitor e m) (lb : LetBindingRecursive e) : m (LetBindingRecursive e) :=
+    match lb with
+    | .Signature sig   => .Signature <$> sig.mapM_value k.onType
+    | .Name fields     => .Name      <$> traverseValueBindingFields k fields
+    | .Pattern b tok w => .Pattern   <$> k.onBinder b <*> pure tok <*> traverseWhere k w
+    | .Error err       => pure (.Error err)
+  termination_by sizeOf lb
+  decreasing_by
+    all_goals simp_wf
+    all_goals try simp_all
+    all_goals try decreasing_trivial
 
-  -- Guarded
-  def traverseGuarded (k : Visitor e f) : GuardedRecursive e → f (GuardedRecursive e)
-    | .mk g => .mk <$> traverseGuardedF k g
+  def traverseWhere (k : Visitor e m) (w : WhereRecursive e) : m (WhereRecursive e) :=
+    match w with
+    | { expr := expr, bindings := none } => do
+        let expr' ← k.onExpr expr
+        pure { expr := expr', bindings := none }
+    | { expr := expr, bindings := some (tok, lbs) } => do
+        let expr' ← k.onExpr expr
+        let lbs' ← lbs.attach.mapM (fun ⟨lb, _h_mem⟩ => traverseLetBinding k lb)
+        pure { expr := expr', bindings := some (tok, lbs') }
+  termination_by sizeOf w
+  decreasing_by
+    all_goals simp_wf
+    have h := NonEmptyArray.sizeOf_lt_of_mem _h_mem
+    omega
 
-  def traverseGuardedF (k : Visitor e f)
-      : GuardedF e (Expr e) (WhereRecursive e) (GuardedRecursive e)
-      → f (GuardedF e (Expr e) (WhereRecursive e) (GuardedRecursive e))
-    | .Unconditional tok w  => .Unconditional tok <$> traverseWhere k w
-    | .Guarded branches     => .Guarded <$> branches.mapM (traverseGuardedExprF k)
 
-  def traverseGuardedExprF (k : Visitor e f) (ge : GuardedExprF e (Expr e) (WhereRecursive e))
-      : f (GuardedExprF e (Expr e) (WhereRecursive e)) :=
+
+  def traverseGuarded (k : Visitor e m) (g : GuardedRecursive e) : m (GuardedRecursive e) :=
+    match g with
+    | .Unconditional tok w => .Unconditional tok <$> traverseWhere k w
+    | .Guarded branches    => .Guarded <$> branches.attach.mapM (fun ⟨ge, _h_mem⟩ => traverseGuardedExpr k ge)
+  termination_by sizeOf g
+  decreasing_by
+    all_goals simp_wf
+    · omega
+    · have := NonEmptyArray.sizeOf_lt_of_mem _h_mem; omega
+
+  def traverseGuardedExpr (k : Visitor e m) (ge : GuardedExprRecursive e) : m (GuardedExprRecursive e) :=
     (fun patterns where_ => { ge with patterns, where_ })
-      <$> traverseSeparated (traversePatternGuardF k) ge.patterns
+      <$> ge.patterns.mapM (traversePatternGuard k)
       <*> traverseWhere k ge.where_
+  termination_by sizeOf ge
+  decreasing_by
+    all_goals simp_wf
 
-  -- ValueBindingFields
-  def traverseValueBindingFields (k : Visitor e f)
-      : ValueBindingFieldsRecursive e → f (ValueBindingFieldsRecursive e)
-    | .mk vbf => .mk <$> traverseValueBindingFieldsF k vbf
+  def traversePatternGuard (k : Visitor e m) (pg : PatternGuardRecursive e) : m (PatternGuardRecursive e) :=
+    (fun binder expr => { pg with binder, expr })
+      <$> pg.binder.mapM (fun (b, tok) => (·, tok) <$> k.onBinder b)
+      <*> k.onExpr pg.expr
 
-  def traverseValueBindingFieldsF (k : Visitor e f)
-      (vbf : ValueBindingFieldsF e (Expr e) (GuardedRecursive e))
-      : f (ValueBindingFieldsF e (Expr e) (GuardedRecursive e)) :=
+  def traverseValueBindingFields (k : Visitor e m) (vbf : ValueBindingFieldsRecursive e) : m (ValueBindingFieldsRecursive e) :=
     (fun binders guarded => { vbf with binders, guarded })
       <$> vbf.binders.mapM k.onBinder
       <*> traverseGuarded k vbf.guarded
+  termination_by sizeOf vbf
+  decreasing_by
+    all_goals simp_wf
 
-  -- DoBlock / AdoBlock
-  -- Note: DoStatementR = DoStatementF e (Expr e) (LetBindingRecursive e)
-  def traverseDoStatement (k : Visitor e f) : DoStatementR e → f (DoStatementR e)
-    | .Let tok lbs   => .Let tok <$> lbs.mapM (traverseLetBinding k)
-    | .Discard ex    => .Discard  <$> k.onExpr ex
+  def traverseDoStatement (k : Visitor e m) (s : DoStatementRecursive e) : m (DoStatementRecursive e) :=
+    match s with
+    | .Let tok lbs   => .Let tok <$> lbs.attach.mapM (fun ⟨lb, _h_mem⟩ => traverseLetBinding k lb)
+    | .Discard ex    => .Discard <$> k.onExpr ex
     | .Bind b tok ex => .Bind    <$> k.onBinder b <*> pure tok <*> k.onExpr ex
     | .Error err     => pure (.Error err)
 
-  def traverseDoBlockRecursive (k : Visitor e f) : DoBlockRecursive e → f (DoBlockRecursive e)
-    | .mk db => .mk <$>
-        (fun statements => { db with statements })
-          <$> db.statements.mapM (traverseDoStatement k)
+  def traverseDoBlock (k : Visitor e m) (db : DoBlockRecursive e) : m (DoBlockRecursive e) :=
+    (fun statements => { db with statements })
+      <$> db.statements.attach.mapM (fun ⟨s, _h_mem⟩ => traverseDoStatement k s)
 
-  def traverseAdoBlockRecursive (k : Visitor e f) : AdoBlockRecursive e → f (AdoBlockRecursive e)
-    | .mk ab => .mk <$>
-        (fun statements result => { ab with statements, result })
-          <$> ab.statements.mapM (traverseDoStatement k)
-          <*> k.onExpr ab.result
-
+  def traverseAdoBlock (k : Visitor e m) (ab : AdoBlockRecursive e) : m (AdoBlockRecursive e) :=
+    (fun statements result => { ab with statements, result })
+      <$> ab.statements.attach.mapM (fun ⟨s, _h_mem⟩ => traverseDoStatement k s)
+      <*> k.onExpr ab.result
 end
 
 end ExprTraversal
@@ -303,47 +261,47 @@ end ExprTraversal
 --------------------------------------------------------------------
 
 section DeclTraversal
-variable {e : Type} {f : Type → Type} [Applicative f]
+variable {e : Type} {m : Type → Type} [Monad m]
 
-def traverseInstanceHead (k : Visitor e f) (ih : InstanceHead e) : f (InstanceHead e) :=
+def traverseInstanceHead (k : Visitor e m) (ih : InstanceHead e) : m (InstanceHead e) :=
   (fun constraints types => { ih with constraints, types })
-    <$> ih.constraints.mapM (fun (c, tok) => (·, tok) <$> traverseOneOrDelimited k.onType c)
+    <$> ih.constraints.mapM (fun (c, tok) => (·, tok) <$> c.mapM k.onType)
     <*> ih.types.mapM k.onType
 
-def traverseInstanceBinding (k : Visitor e f) : InstanceBinding e → f (InstanceBinding e)
-  | .Signature sig  => .Signature <$> traverseLabeled k.onType sig
+def traverseInstanceBinding (k : Visitor e m) : InstanceBinding e → m (InstanceBinding e)
+  | .Signature sig  => .Signature <$> sig.mapM_value k.onType
   | .Name fields    => .Name      <$> traverseValueBindingFields k fields
 
-def traverseInstance (k : Visitor e f) (inst : Instance e) : f (Instance e) :=
-  (fun head body => { head, body })
+def traverseInstance (k : Visitor e m) (inst : Instance e) : m (Instance e) :=
+  (fun head body => { inst with head, body })
     <$> traverseInstanceHead k inst.head
     <*> inst.body.mapM (fun (tok, lbs) =>
           (tok, ·) <$> lbs.mapM (traverseInstanceBinding k))
 
-def traverseClassHead (k : Visitor e f) (ch : ClassHead e) : f (ClassHead e) :=
+def traverseClassHead (k : Visitor e m) (ch : ClassHead e) : m (ClassHead e) :=
   (fun typeConstraint parameters => { ch with typeConstraint, parameters })
     <$> ch.typeConstraint.mapM (fun (c, tok) =>
-          (·, tok) <$> traverseOneOrDelimited k.onType c)
-    <*> ch.parameters.mapM (traverseTypeVarBindingF k)
+          (·, tok) <$> c.mapM k.onType)
+    <*> ch.parameters.mapM (fun b => b.mapM k.onType)
 
-def traverseDataHead (k : Visitor e f) (dh : DataHead e) : f (DataHead e) :=
+def traverseDataHead (k : Visitor e m) (dh : DataHead e) : m (DataHead e) :=
   (fun parameters => { dh with parameters })
-    <$> dh.parameters.mapM (traverseTypeVarBindingF k)
+    <$> dh.parameters.mapM (fun b => b.mapM k.onType)
 
-def traverseDataCtor (k : Visitor e f) (dc : DataCtor e) : f (DataCtor e) :=
+def traverseDataCtor (k : Visitor e m) (dc : DataCtor e) : m (DataCtor e) :=
   (fun parameters => { dc with parameters })
     <$> dc.parameters.mapM k.onType
 
-def traverseForeign (k : Visitor e f) : Foreign e → f (Foreign e)
-  | .Value l       => .Value <$> traverseLabeled k.onType l
-  | .Data tok l    => .Data tok <$> traverseLabeled k.onType l
+def traverseForeign (k : Visitor e m) : Foreign e → m (Foreign e)
+  | .Value l       => .Value <$> l.mapM_value k.onType
+  | .Data tok l    => .Data tok <$> l.mapM_value k.onType
   | .Kind tok n    => pure (.Kind tok n)
 
-def traverseDecl (k : Visitor e f) : Declaration e → f (Declaration e)
+def traverseDecl (k : Visitor e m) : Declaration e → m (Declaration e)
   | .Data dh ctors =>
       .Data <$> traverseDataHead k dh
             <*> ctors.mapM (fun (tok, sep) =>
-                  (tok, ·) <$> traverseSeparated (traverseDataCtor k) sep)
+                  (tok, ·) <$> sep.mapM (traverseDataCtor k))
   | .Type_ dh tok t =>
       .Type_ <$> traverseDataHead k dh <*> pure tok <*> k.onType t
   | .Newtype dh tok n t =>
@@ -351,28 +309,28 @@ def traverseDecl (k : Visitor e f) : Declaration e → f (Declaration e)
   | .Class ch sigs =>
       .Class <$> traverseClassHead k ch
              <*> sigs.mapM (fun (tok, ls) =>
-                   (tok, ·) <$> ls.mapM (traverseLabeled k.onType))
+                   (tok, ·) <$> ls.mapM (fun l => l.mapM_value k.onType))
   | .InstanceChain sep =>
-      .InstanceChain <$> traverseSeparated (traverseInstance k) sep
+      .InstanceChain <$> sep.mapM (traverseInstance k)
   | .Derive tok mbTok ih =>
       .Derive tok mbTok <$> traverseInstanceHead k ih
   | .KindSignature tok l =>
-      .KindSignature tok <$> traverseLabeled k.onType l
+      .KindSignature tok <$> l.mapM_value k.onType
   | .Signature l =>
-      .Signature <$> traverseLabeled k.onType l
+      .Signature <$> l.mapM_value k.onType
   | .Value fields =>
       .Value <$> traverseValueBindingFields k fields
   | .Foreign tok1 tok2 f =>
       .Foreign tok1 tok2 <$> traverseForeign k f
   | decl => pure decl
 
-def traverseModuleBody (k : Visitor e f) (mb : ModuleBody e) : f (ModuleBody e) :=
+def traverseModuleBody (k : Visitor e m) (mb : ModuleBody e) : m (ModuleBody e) :=
   (fun decls => { mb with decls })
-    <$> mb.decls.mapM k.onDecl
+    <$> mb.decls.mapM (traverseDecl k)
 
-def traverseModule (k : Visitor e f) (m : Module e) : f (Module e) :=
-  (fun body => { m with body })
-    <$> traverseModuleBody k m.body
+def traverseModule (k : Visitor e m) (m_ : Module e) : m (Module e) :=
+  (fun body => { m_ with body })
+    <$> traverseModuleBody k m_.body
 
 end DeclTraversal
 
@@ -383,14 +341,14 @@ end DeclTraversal
 section Combinators
 variable {e : Type} {m : Type → Type} [Monad m]
 
-def bottomUpTraversal (v : Visitor e m) : Visitor e m :=
+partial def bottomUpTraversal (v : Visitor e m) : Visitor e m :=
   { onBinder := fun a => v.onBinder =<< traverseBinder v' a
   , onExpr   := fun a => v.onExpr   =<< traverseExpr   v' a
   , onType   := fun a => v.onType   =<< traverseType   v' a
   , onDecl   := fun a => v.onDecl   =<< traverseDecl   v' a }
-  where v' := bottomUpTraversal v  -- lazy via Monad deferred eval
+  where v' := bottomUpTraversal v
 
-def topDownTraversal (v : Visitor e m) : Visitor e m :=
+partial def topDownTraversal (v : Visitor e m) : Visitor e m :=
   { onBinder := fun a => v.onBinder a >>= traverseBinder v'
   , onExpr   := fun a => v.onExpr   a >>= traverseExpr   v'
   , onType   := fun a => v.onType   a >>= traverseType   v'
@@ -417,24 +375,25 @@ def rewriteModuleTopDownM  (v : Visitor e m) : Module e → m (Module e) :=
   traverseModule (topDownTraversal v)
 
 -- Pure (Identity monad) variants
-def rewriteExprBottomUp  (v : Visitor e id) : Expr e → Expr e :=
+def rewriteExprBottomUp  (v : Visitor e Id) : Expr e → Expr e :=
   rewriteExprBottomUpM v
 
-def rewriteExprTopDown   (v : Visitor e id) : Expr e → Expr e :=
+def rewriteExprTopDown   (v : Visitor e Id) : Expr e → Expr e :=
   rewriteExprTopDownM v
 
-def rewriteModuleBottomUp (v : Visitor e id) : Module e → Module e :=
+def rewriteModuleBottomUp (v : Visitor e Id) : Module e → Module e :=
   rewriteModuleBottomUpM v
 
-def rewriteModuleTopDown  (v : Visitor e id) : Module e → Module e :=
+def rewriteModuleTopDown  (v : Visitor e Id) : Module e → Module e :=
   rewriteModuleTopDownM v
 
--- Monoidal fold (foldMap equivalent)
-def foldMapExpr [Monoid r] (v : Visitor e (Const r)) : Expr e → r :=
-  fun ex => (rewriteExprTopDownM v ex).getConst
+-- Monoidal fold
+-- Emulates Haskell's `Const r` fold by accumulating state through `StateM r Unit`.
+def foldMapExpr {r : Type} [Add r] [OfNat r 0] (v : Visitor e (StateM r)) : Expr e → r :=
+  fun ex => ((rewriteExprTopDownM v ex).run 0).snd
 
-def foldMapModule [Monoid r] (v : Visitor e (Const r)) : Module e → r :=
-  fun m => (rewriteModuleTopDownM v m).getConst
+def foldMapModule {r : Type} [Add r] [OfNat r 0] (v : Visitor e (StateM r)) : Module e → r :=
+  fun mod => ((rewriteModuleTopDownM v mod).run 0).snd
 
 end Combinators
 

@@ -21,7 +21,7 @@ open NonEmpty.CorrectByConstruction.Array
   cases data; decreasing_trivial
 
 @[simp] theorem LetBindingRecursive.sizeOf_Signature_labeled_lt {e : Type} (labeled : Labeled (PureScript.CST.Types.Name Ident) (Type_ e)) : sizeOf labeled < sizeOf (LetBindingRecursive.Signature (e := e) labeled) := by
-  simp [LetBindingRecursive.Signature.sizeOf_spec];
+  simp? [LetBindingRecursive.Signature.sizeOf_spec];
 
 @[simp] theorem LetBindingRecursive.sizeOf_Name_fields_lt {e : Type} (fields : ValueBindingFieldsRecursive e) : sizeOf fields < sizeOf (LetBindingRecursive.Name (e := e) fields) := by
   decreasing_trivial

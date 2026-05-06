@@ -1,4 +1,5 @@
 import PurescriptLanguageCstParser.PureScript.CST.Types
+import Aesop
 
 namespace PureScript.CST.Print
 
@@ -14,9 +15,25 @@ def printLineFeed : LineFeed → String
   | .CRLF => "\r\n"
 
 def power (s : String) (n : USize) : String :=
-  let rec go (acc : String) (n : USize) : String :=
-    if n == 0 then acc
-    else go (acc ++ s) (n - 1)
+  let rec go (acc : String) (k : USize) : String :=
+    if h : k = 0 then
+      acc
+    else
+      go (acc ++ s) (k - 1)
+  termination_by k.toNat
+  decreasing_by
+    simp_wf
+    have h_ne : k.toNat ≠ 0 := by
+      intro h0
+      apply h
+      apply USize.toNat_inj.1
+      rw [h0, USize.toNat_zero]
+    rw [USize.toNat_sub_of_le]
+    · simp [USize.toNat_one]
+      omega
+    · apply USize.le_iff_toNat_le.2
+      simp [USize.toNat_one]
+      omega
   go "" n
 
 def printComment {l : Type} (k : l → String) : Comment l → String
@@ -56,7 +73,7 @@ def printTokenWithOption (option : TokenOption) : Token → String
   | .SymbolArrow style => match style with | .ASCII => "(->)" | .Unicode => "(→)"
   | .Hole name => "?" ++ name.toString
   | .Char raw _ => "'" ++ raw ++ "'"
-  | .String raw _ => "\"" ++ raw ++ "\""
+  | .NonEmptyString raw _ => "\"" ++ raw ++ "\""
   | .RawString raw => "\"\"\"" ++ raw ++ "\"\"\""
   | .Int raw _ => raw
   | .Number raw _ => raw
@@ -66,10 +83,14 @@ def printTokenWithOption (option : TokenOption) : Token → String
 
 def printToken : Token → String := printTokenWithOption .HideLayout
 
+def printCommentWithoutLine : CommentWithoutLine → String
+  | .Comment str => str.toString
+  | .Space n => "".pushn ' ' n.toNat
+
 def printSourceTokenWithOption (option : TokenOption) (tok : SourceToken) : String :=
   let leading := tok.leadingComments.foldl (fun acc c => acc ++ printComment printLineFeed c) ""
   let value := printTokenWithOption option tok.value
-  let trailing := tok.trailingComments.foldl (fun acc c => acc ++ printComment (fun _ => "") c) ""
+  let trailing := tok.trailingComments.foldl (fun acc c => acc ++ printCommentWithoutLine c) ""
   leading ++ value ++ trailing
 
 def printSourceToken : SourceToken → String := printSourceTokenWithOption .HideLayout
