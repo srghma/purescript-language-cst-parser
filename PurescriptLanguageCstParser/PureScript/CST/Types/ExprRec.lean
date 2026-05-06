@@ -68,7 +68,7 @@ mutual
     deriving Repr, BEq
   inductive RecordUpdateRecursive (e : Type) : Type where
     | Leaf (label : Name Label) (token : SourceToken) (expr : Expr e) : RecordUpdateRecursive e
-    | Branch (label : Name Label) (updates : DelimitedNonEmpty (RecordUpdateF (Expr e))) : RecordUpdateRecursive e
+    | Branch (label : Name Label) (updates : DelimitedNonEmpty (RecordUpdateRecursive e)) : RecordUpdateRecursive e
     deriving Repr, BEq
   inductive AppSpineRecursive (e : Type) : Type where
     | Type_ (token : SourceToken) (type_ : Type_ e) : AppSpineRecursive e
@@ -186,6 +186,7 @@ generate_fixed_mutual?
 
   generate_fixed RecordUpdateRecursive (e : Type) from RecordUpdateF
     fill expr_e with (Expr e)
+    fill self with (RecordUpdateRecursive e)
     deriving Repr, BEq
 
   generate_fixed AppSpineRecursive (e : Type) from AppSpineF

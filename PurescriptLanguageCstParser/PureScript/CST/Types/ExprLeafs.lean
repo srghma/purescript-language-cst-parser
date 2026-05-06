@@ -1054,81 +1054,81 @@ instance {e : Type} : LawfulFunctor (AppSpineF e) where
 
 end AppSpineF
 --
-inductive RecordUpdateF (expr_e : Type)
+inductive RecordUpdateF (expr_e self : Type)
   | Leaf (label : Name Label) (token : SourceToken) (expr : expr_e)
-  | Branch (label : Name Label) (updates : DelimitedNonEmpty (RecordUpdateF expr_e))
+  | Branch (label : Name Label) (updates : DelimitedNonEmpty self)
   deriving Repr, BEq
 
-namespace RecordUpdateF
+-- namespace RecordUpdateF
 
-@[simp] theorem sizeOf_Leaf {α : Type} [SizeOf α] (l t expr) :
-  sizeOf (RecordUpdateF.Leaf (expr_e := α) l t expr) = 1 + sizeOf l + sizeOf t + sizeOf expr :=
-  RecordUpdateF.Leaf.sizeOf_spec l t expr
+-- @[simp] theorem sizeOf_Leaf {α : Type} [SizeOf α] (l t expr) :
+--   sizeOf (RecordUpdateF.Leaf (expr_e := α) l t expr) = 1 + sizeOf l + sizeOf t + sizeOf expr :=
+--   RecordUpdateF.Leaf.sizeOf_spec l t expr
 
-@[simp] theorem sizeOf_Branch {α : Type} [SizeOf α] (l updates) :
-  sizeOf (RecordUpdateF.Branch (expr_e := α) l updates) = 1 + sizeOf l + sizeOf updates :=
-  RecordUpdateF.Branch.sizeOf_spec l updates
+-- @[simp] theorem sizeOf_Branch {α : Type} [SizeOf α] (l updates) :
+--   sizeOf (RecordUpdateF.Branch (expr_e := α) l updates) = 1 + sizeOf l + sizeOf updates :=
+--   RecordUpdateF.Branch.sizeOf_spec l updates
 
-@[inline] def map_all {α β : Type} [SizeOf α] (f_expr : α → β) (u : RecordUpdateF α) : RecordUpdateF β :=
-  match u with
-  | .Leaf label token expr => .Leaf label token (f_expr expr)
-  | .Branch label updates  => .Branch label (updates.attach.map (fun x => x.val.map_all f_expr))
-termination_by sizeOf u
-decreasing_by
-  simp_wf
-  have := DelimitedNonEmpty.sizeOf_attach_elem updates x
-  omega
+-- @[inline] def map_all {α β : Type} [SizeOf α] (f_expr : α → β) (u : RecordUpdateF α) : RecordUpdateF β :=
+--   match u with
+--   | .Leaf label token expr => .Leaf label token (f_expr expr)
+--   | .Branch label updates  => .Branch label (updates.attach.map (fun x => x.val.map_all f_expr))
+-- termination_by sizeOf u
+-- decreasing_by
+--   simp_wf
+--   have := DelimitedNonEmpty.sizeOf_attach_elem updates x
+--   omega
 
-@[simp] theorem map_all_id {α : Type} (u : RecordUpdateF α) : map_all id u = u := by
-  match u with
-  | .Leaf label token expr => simp only [map_all, id_eq]
-  | .Branch label updates =>
-    simp only [map_all, Branch.injEq, true_and]
-    have h : (fun x : { x // x ∈ updates } => x.val.map_all id) = (fun x => x.val) := by
-      funext x; exact map_all_id x.val
-    rw [h, DelimitedNonEmpty.attach_map_val]
-termination_by sizeOf u
-decreasing_by
-  simp_wf
-  have := DelimitedNonEmpty.sizeOf_attach_elem updates x
-  omega
+-- @[simp] theorem map_all_id {α : Type} (u : RecordUpdateF α) : map_all id u = u := by
+--   match u with
+--   | .Leaf label token expr => simp only [map_all, id_eq]
+--   | .Branch label updates =>
+--     simp only [map_all, Branch.injEq, true_and]
+--     have h : (fun x : { x // x ∈ updates } => x.val.map_all id) = (fun x => x.val) := by
+--       funext x; exact map_all_id x.val
+--     rw [h, DelimitedNonEmpty.attach_map_val]
+-- termination_by sizeOf u
+-- decreasing_by
+--   simp_wf
+--   have := DelimitedNonEmpty.sizeOf_attach_elem updates x
+--   omega
 
-@[simp] theorem map_all_comp {α β γ : Type} (f_expr : α → β) (g_expr : β → γ) (u : RecordUpdateF α) :
-  map_all (g_expr ∘ f_expr) u = map_all g_expr (map_all f_expr u) := by
-  match u with
-  | .Leaf label token expr => simp only [map_all, Function.comp_apply]
-  | .Branch label updates =>
-    simp only [map_all, Branch.injEq, true_and]
-    have h : (fun x : { x // x ∈ updates } => x.val.map_all (g_expr ∘ f_expr)) = (fun x => (x.val.map_all f_expr).map_all g_expr) := by
-      funext x; exact map_all_comp f_expr g_expr x.val
-    rw [h]
-    rw [DelimitedNonEmpty.attach_map]
-    rw [← DelimitedNonEmpty.comp_map]
-    rfl
-termination_by sizeOf u
-decreasing_by
-  simp_wf
-  have := DelimitedNonEmpty.sizeOf_attach_elem updates x
-  omega
+-- @[simp] theorem map_all_comp {α β γ : Type} (f_expr : α → β) (g_expr : β → γ) (u : RecordUpdateF α) :
+--   map_all (g_expr ∘ f_expr) u = map_all g_expr (map_all f_expr u) := by
+--   match u with
+--   | .Leaf label token expr => simp only [map_all, Function.comp_apply]
+--   | .Branch label updates =>
+--     simp only [map_all, Branch.injEq, true_and]
+--     have h : (fun x : { x // x ∈ updates } => x.val.map_all (g_expr ∘ f_expr)) = (fun x => (x.val.map_all f_expr).map_all g_expr) := by
+--       funext x; exact map_all_comp f_expr g_expr x.val
+--     rw [h]
+--     rw [DelimitedNonEmpty.attach_map]
+--     rw [← DelimitedNonEmpty.comp_map]
+--     rfl
+-- termination_by sizeOf u
+-- decreasing_by
+--   simp_wf
+--   have := DelimitedNonEmpty.sizeOf_attach_elem updates x
+--   omega
 
-@[always_inline, inline] def map_expr_e {α β : Type} [SizeOf α] (f : α → β) (u : RecordUpdateF α) : RecordUpdateF β :=
-  u.map_all f
+-- @[always_inline, inline] def map_expr_e {α β : Type} [SizeOf α] (f : α → β) (u : RecordUpdateF α) : RecordUpdateF β :=
+--   u.map_all f
 
-@[always_inline, inline] def map_e {e1 e2 α : Type} [SizeOf α] (_f : e1 → e2) (u : RecordUpdateF α) : RecordUpdateF α :=
-  u
+-- @[always_inline, inline] def map_e {e1 e2 α : Type} [SizeOf α] (_f : e1 → e2) (u : RecordUpdateF α) : RecordUpdateF α :=
+--   u
 
-@[simp] theorem map_expr_e_id {α : Type} (u : RecordUpdateF α) : map_expr_e id u = u := map_all_id u
-@[simp] theorem map_expr_e_comp {α β γ : Type} (f : α → β) (g : β → γ) (u : RecordUpdateF α) : map_expr_e (g ∘ f) u = map_expr_e g (map_expr_e f u) := map_all_comp f g u
-@[simp] theorem map_e_id {e α : Type} (u : RecordUpdateF α) : map_e (id : e → e) u = u := rfl
-@[simp] theorem map_e_comp {e1 e2 e3 α : Type} (f : e1 → e2) (g : e2 → e3) (u : RecordUpdateF α) : map_e (g ∘ f) u = map_e g (map_e f u) := rfl
+-- @[simp] theorem map_expr_e_id {α : Type} (u : RecordUpdateF α) : map_expr_e id u = u := map_all_id u
+-- @[simp] theorem map_expr_e_comp {α β γ : Type} (f : α → β) (g : β → γ) (u : RecordUpdateF α) : map_expr_e (g ∘ f) u = map_expr_e g (map_expr_e f u) := map_all_comp f g u
+-- @[simp] theorem map_e_id {e α : Type} (u : RecordUpdateF α) : map_e (id : e → e) u = u := rfl
+-- @[simp] theorem map_e_comp {e1 e2 e3 α : Type} (f : e1 → e2) (g : e2 → e3) (u : RecordUpdateF α) : map_e (g ∘ f) u = map_e g (map_e f u) := rfl
 
-instance : Functor RecordUpdateF where map := map_expr_e
-instance : LawfulFunctor RecordUpdateF where
-  map_const := rfl
-  id_map := map_expr_e_id
-  comp_map := map_expr_e_comp
+-- instance : Functor RecordUpdateF where map := map_expr_e
+-- instance : LawfulFunctor RecordUpdateF where
+--   map_const := rfl
+--   id_map := map_expr_e_id
+--   comp_map := map_expr_e_comp
 
-end RecordUpdateF
+-- end RecordUpdateF
 
 structure RecordAccessorF (expr_e : Type) where
   expr : expr_e
@@ -1719,7 +1719,7 @@ set_option linter.unusedVariables false in
   | Negate t e' => simp only [map_all, id_eq]
   | RecordAccessor data => simp only [map_all, id_eq]
   | RecordUpdate e' updates => simp only [map_all, id_eq, DelimitedNonEmpty.id_map]
-  | App fn args => simp only [map_all, id_eq, NonEmptyArray.id_map]
+  | App fn args => simp_all only [map_all, id_eq, NonEmptyArray.map, Array.map_id_fun]
   | Lambda data => simp only [map_all, id_eq]
   | If data => simp only [map_all, id_eq]
   | Case data => simp only [map_all, id_eq]
@@ -1834,7 +1834,7 @@ set_option linter.unusedVariables false in
   | Negate t e' => simp only [map_all, Function.comp_apply]
   | RecordAccessor data => simp only [map_all, Function.comp_apply]
   | RecordUpdate e' updates => simp only [map_all, Function.comp_apply, DelimitedNonEmpty.comp_map]
-  | App fn args => simp only [map_all, Function.comp_apply, NonEmptyArray.comp_map]
+  | App fn args => simp only [map_all, Function.comp_apply, NonEmptyArray.map, Array.map_map]
   | Lambda data => simp only [map_all, Function.comp_apply]
   | If data => simp only [map_all, Function.comp_apply]
   | Case data => simp only [map_all, Function.comp_apply]
