@@ -3,11 +3,11 @@ module
 import NonEmpty.CorrectByConstruction.Array
 import NonEmpty.String
 import Aesop
-import PurescriptLanguageCstParser.PureScript.CST.Types.PType
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Leafs
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Basic
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Simp
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Functor
+import PurescriptLanguageCstParser.Types.PType
+public import PurescriptLanguageCstParser.Types.Expr.Leafs
+public import PurescriptLanguageCstParser.Types.Expr.Rec.Basic
+public import PurescriptLanguageCstParser.Types.Expr.Rec.Simp
+public import PurescriptLanguageCstParser.Types.Expr.Rec.Functor
 @[expose] public section
 namespace PureScript.CST.Types
 
@@ -94,10 +94,14 @@ mutual
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
-    · grind?
-    · grind?
-    · grind?
+    · sorry
+    ·
+      simp_all
+      sorry
+    · sorry
+    ·
+      simp_all
+      sorry
 
   theorem Expr.mapDelimited_id {e : Type} (d : Delimited (Expr e)) : Expr.mapDelimited id d = d := by
     cases d with | mk w =>
@@ -107,7 +111,7 @@ mutual
     | some s =>
         unfold Expr.mapDelimited
         simp_all only [Expr.mapSep.eq_1, Delimited.mk.injEq, Wrapped.mk.injEq, Option.some.injEq, and_true, true_and]
-        grind?
+        sorry
   termination_by sizeOf d
   decreasing_by simp_all
 
@@ -125,7 +129,7 @@ mutual
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem Expr.mapDelimitedRL_id {e : Type} (d : Delimited (RecordLabeled (Expr e))) : Expr.mapDelimitedRL id d = d := by
     cases d; rename_i w
@@ -156,7 +160,7 @@ mutual
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
 
   theorem Expr.mapRL_id {e : Type} (rl : RecordLabeled (Expr e)) : Expr.mapRL id rl = rl := by
@@ -185,7 +189,8 @@ mutual
         unfold RecordUpdateRecursive.map; congr
         -- have h : RecordUpdateRecursive.map id = id := funext RecordUpdateRecursive.map_id
         -- simp? [h, DelimitedNonEmpty.id_map]
-        grind?
+        simp_all only [DelimitedNonEmpty.map, DelimitedNonEmpty.attach, DelimitedNonEmpty.attachWith, Separated.map]
+        sorry
   termination_by sizeOf u
   decreasing_by
     all_goals simp_wf
@@ -203,7 +208,7 @@ mutual
   theorem LambdaRecursive.map_id {e : Type} (d : LambdaRecursive e) : LambdaRecursive.map id d = d := by
     have hb : Binder.map id = (id : Binder e → Binder e) := funext Binder.map_id
     cases d; unfold LambdaRecursive.map; congr
-    · simp? [hb, NonEmptyArray.map_id]
+    · simp only [NonEmptyArray.map, Binder.map_id, hb, Array.map_id_fun, id_eq]
     · exact Expr.map_id _
   termination_by sizeOf d
   decreasing_by
@@ -237,7 +242,7 @@ mutual
     all_goals simp_all only
     all_goals try decreasing_trivial
     · cases data
-      grind?
+      sorry
 
   theorem GuardedRecursive.map_id {e : Type} (g : GuardedRecursive e) : GuardedRecursive.map id g = g := by
     cases g
@@ -254,14 +259,15 @@ mutual
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem GuardedExprRecursive.map_id {e : Type} (d : GuardedExprRecursive e) : GuardedExprRecursive.map id d = d := by
     cases d with | mk bar patterns separator where_ =>
     unfold GuardedExprRecursive.map; congr
     · -- have h : PatternGuardRecursive.map id = id := funext PatternGuardRecursive.map_id
       -- simp? [h, Separated.id_map]
-      grind?
+      simp_all only [Separated.map, PatternGuardRecursive.map.eq_1, Binder.map_id, Option.attach_map_subtype_val]
+      sorry
     · exact WhereRecursive.map_id where_
   termination_by sizeOf d
   decreasing_by
@@ -276,23 +282,24 @@ mutual
               | ⟨(b, t), _ht⟩ => (Binder.map id b, t)) =
             fun x => x.val := by
         funext ⟨⟨b, t⟩, _⟩
-        simp? [Binder.map_id]
+        simp only [Binder.map_id]
       -- rw [h]
       -- exact Option.attach_map_val binder
-      grind?
+      simp_all only [Binder.map_id, Option.attach_map_subtype_val]
     · exact Expr.map_id expr
   termination_by sizeOf d
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem LetInRecursive.map_id {e : Type} (d : LetInRecursive e) : LetInRecursive.map id d = d := by
     cases d with | mk kw bindings in_ body =>
     unfold LetInRecursive.map; congr
     · -- have h : LetBindingRecursive.map id = id := funext LetBindingRecursive.map_id
       -- simp? [h, NonEmptyArray.map_id]
-      grind?
+      simp_all only [NonEmptyArray.map, Array.map_subtype]
+      sorry
     · exact Expr.map_id body
   termination_by sizeOf d
   decreasing_by
@@ -301,7 +308,7 @@ mutual
 
   theorem LetBindingRecursive.map_id {e : Type} (b : LetBindingRecursive e) : LetBindingRecursive.map id b = b := by
     match b with
-    | .Signature l => unfold LetBindingRecursive.map; congr; grind? -- exact Type_.id_map _
+    | .Signature l => unfold LetBindingRecursive.map; congr; sorry -- exact Type_.id_map _
     | .Name fields => unfold LetBindingRecursive.map; congr; exact ValueBindingFieldsRecursive.map_id fields
     | .Pattern b' t w => unfold LetBindingRecursive.map; congr; exact Binder.map_id b'; exact WhereRecursive.map_id w
     | .Error d => unfold LetBindingRecursive.map; rfl
@@ -309,20 +316,23 @@ mutual
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem ValueBindingFieldsRecursive.map_id {e : Type} (d : ValueBindingFieldsRecursive e) : ValueBindingFieldsRecursive.map id d = d := by
     cases d with | mk name binders guarded =>
     unfold ValueBindingFieldsRecursive.map; congr
     · -- have h : Binder.map id = id := funext Binder.map_id
       -- simp? [h, Array.map_id]
-      grind?
+      grind =>
+        instantiate only [= Array.size_map]
+        instantiate only [= Array.size_attach]
+        sorry
     · exact GuardedRecursive.map_id guarded
   termination_by sizeOf d
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem WhereRecursive.map_id {e : Type} (d : WhereRecursive e) : WhereRecursive.map id d = d := by
     cases d with | mk expr bindings =>
@@ -335,7 +345,9 @@ mutual
           congr
           -- have h : LetBindingRecursive.map id = id := funext LetBindingRecursive.map_id
           -- simp? [h, NonEmptyArray.map_id]
-          grind?
+          simp_all only [NonEmptyArray.map, Array.map_subtype, Option.attach_some, Option.map_some, Option.some.injEq,
+            Prod.mk.injEq, true_and]
+          sorry
   termination_by sizeOf d
   decreasing_by
     all_goals simp_wf
@@ -345,12 +357,13 @@ mutual
     cases d; unfold DoBlockRecursive.map; congr
     -- have h : DoStatementRecursive.map id = id := funext DoStatementRecursive.map_id
     -- simp? [h, NonEmptyArray.map_id]
-    grind?
+    simp_all only [NonEmptyArray.map, Array.map_subtype]
+    sorry
   termination_by sizeOf d
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem AdoBlockRecursive.map_id {e : Type} (data : AdoBlockRecursive e) : AdoBlockRecursive.map id data = data := by
     cases data
@@ -365,12 +378,12 @@ mutual
         (fun sts => ({ keyword := keyword, statements := sts, in_ := in_, result := Expr.map id result } :
           AdoBlockRecursive e))
         (Array.attach_map_val statements (f := fun st => DoStatementRecursive.map id st))
-    simp? [Expr.map_id]
+    simp only [Array.map_subtype, Array.unattach_attach, Array.map_id_fun', id_eq, Expr.map_id]
     termination_by sizeOf data
   decreasing_by
     all_goals simp_wf
     all_goals try decreasing_trivial
-    · grind?
+    · sorry
 
   theorem DoStatementRecursive.map_id {e : Type} (s : DoStatementRecursive e) : DoStatementRecursive.map id s = s := by
     match s with
@@ -378,7 +391,8 @@ mutual
         unfold DoStatementRecursive.map; congr
         -- have h : LetBindingRecursive.map id = id := funext LetBindingRecursive.map_id
         -- simp? [h, NonEmptyArray.map_id]
-        grind?
+        simp_all only [NonEmptyArray.map, Array.map_subtype]
+        sorry
     | .Discard e' => unfold DoStatementRecursive.map; congr; exact Expr.map_id e'
     | .Bind b t e' => unfold DoStatementRecursive.map; congr; exact Binder.map_id b; exact Expr.map_id e'
     | .Error d => unfold DoStatementRecursive.map; rfl

@@ -1,7 +1,7 @@
 module
 
-public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Leafs
+public import PurescriptLanguageCstParser.Types.PType
+public import PurescriptLanguageCstParser.Types.Expr.Leafs
 meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section

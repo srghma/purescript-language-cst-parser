@@ -1,9 +1,10 @@
 module
-import PurescriptLanguageCstParser.PureScript.CST.Types
+public import PurescriptLanguageCstParser.Types
 import NonEmpty.CorrectByConstruction.Array
 
 open NonEmpty.CorrectByConstruction.Array
 open PureScript.CST.Types
+@[expose] public section
 
 namespace PureScript.CST.Traversal
 

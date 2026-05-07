@@ -275,7 +275,7 @@ def attach {α : Type} (w : Wrapped α) : Wrapped { x // x ∈ w } :=
 
 @[simp] theorem sizeOf_mapM_result {α β : Type} (w : Wrapped α) (v : β) :
   sizeOf v < sizeOf (Wrapped.mk w.open_ v w.close) := by
-  simp? [Wrapped.mk.sizeOf_spec]; omega
+  simp only [sizeOf_default, mk.sizeOf_spec, Nat.add_zero]; omega
 
 @[simp] theorem sizeOf_mem {α : Type} [SizeOf α]
     (w : Wrapped α) (a : α) (h : a ∈ w) : sizeOf a < sizeOf w := by
@@ -1400,12 +1400,12 @@ mutual
     | .Record w              => .Record <$> (Wrapped.mk w.open_ <$> Row.mapMType g w.value <*> pure w.close)
   termination_by t => sizeOf t
   decreasing_by
-    · simp? [Type_.Kinded.sizeOf_spec]; omega
-    · simp? [Type_.Kinded.sizeOf_spec]; omega
-    · simp? [Type_.Arrow.sizeOf_spec]; omega
-    · simp? [Type_.Arrow.sizeOf_spec]; omega
-    · simp? [Type_.Constrained.sizeOf_spec]; omega
-    · simp? [Type_.Constrained.sizeOf_spec]; omega
+    · simp only [Type_.Kinded.sizeOf_spec]; omega
+    · simp only [Type_.Kinded.sizeOf_spec, Nat.lt_add_left_iff_pos]; omega
+    · simp only [Type_.Arrow.sizeOf_spec]; omega
+    · simp only [Type_.Arrow.sizeOf_spec, Nat.lt_add_left_iff_pos]; omega
+    · simp only [Type_.Constrained.sizeOf_spec]; omega
+    · simp only [Type_.Constrained.sizeOf_spec, Nat.lt_add_left_iff_pos]; omega
     · simp_all only [Type_.Parens.sizeOf_spec]
       have := Wrapped.sizeOf_value w
       omega

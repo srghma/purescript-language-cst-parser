@@ -3,9 +3,9 @@ module
 import NonEmpty.CorrectByConstruction.Array
 import NonEmpty.String
 import Aesop
-public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Leafs
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Basic
+public import PurescriptLanguageCstParser.Types.PType
+public import PurescriptLanguageCstParser.Types.Expr.Leafs
+public import PurescriptLanguageCstParser.Types.Expr.Rec.Basic
 meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section
@@ -114,7 +114,7 @@ mutual
     · exact Separated.sizeOf_head s
     · simp_wf
       obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
-      have : e = s.tail[i].2 := by simp? [h]
+      have : e = s.tail[i].2 := by simp only [h]
       rw [this]; exact s.sizeOf_tail_get i hi
 
   -- ── Delimited (RecordLabeled (Expr e)) ─────────────────────────────
@@ -142,7 +142,7 @@ mutual
     · exact Separated.sizeOf_head s
     · simp_wf
       obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
-      have : rl = s.tail[i].2 := by simp? [h]
+      have : rl = s.tail[i].2 := by simp only [h]
       rw [this]; exact s.sizeOf_tail_get i hi
 
   -- ── RecordLabeled (Expr e) ─────────────────────────────────────────
@@ -335,12 +335,12 @@ mutual
     | mk expr bindings =>
       cases bindings with
       | none =>
-          simp? [WhereRecursive.mk.sizeOf_spec]
+          simp only [WhereRecursive.mk.sizeOf_spec, Option.none.sizeOf_spec]
           omega
       | some p =>
           cases p with
           | mk t bs =>
-            simp? [WhereRecursive.mk.sizeOf_spec]
+            simp only [WhereRecursive.mk.sizeOf_spec, Option.some.sizeOf_spec, Prod.mk.sizeOf_spec]
             omega
     cases data with
     | mk expr bindings =>

@@ -3,9 +3,9 @@ module
 import NonEmpty.CorrectByConstruction.Array
 import NonEmpty.String
 import Aesop
-public import PurescriptLanguageCstParser.PureScript.CST.Types.PType
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Leafs
-public import PurescriptLanguageCstParser.PureScript.CST.Types.Expr.Rec.Basic
+public import PurescriptLanguageCstParser.Types.PType
+public import PurescriptLanguageCstParser.Types.Expr.Leafs
+public import PurescriptLanguageCstParser.Types.Expr.Rec.Basic
 meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section

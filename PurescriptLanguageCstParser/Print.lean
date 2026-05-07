@@ -1,5 +1,8 @@
-import PurescriptLanguageCstParser.PureScript.CST.Types
-import Aesop
+module
+
+public import PurescriptLanguageCstParser.Types.PType
+
+@[expose] public section
 
 namespace PureScript.CST.Print
 
