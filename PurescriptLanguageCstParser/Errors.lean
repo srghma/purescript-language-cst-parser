@@ -36,7 +36,7 @@ def printTokenError : Token → String
   | .SymbolArrow style => match style with | .ASCII => "(->)" | .Unicode => "(→)"
   | .Hole name => "hole ?" ++ name.toString
   | .Char raw _ => "char literal '" ++ raw ++ "'"
-  | .NonEmptyString raw _ => "string literal"
+  | .NonEmptyString _raw _ => "string literal"
   | .RawString _ => "raw string literal"
   | .Int raw _ => "int literal " ++ raw
   | .Number raw _ => "number literal " ++ raw

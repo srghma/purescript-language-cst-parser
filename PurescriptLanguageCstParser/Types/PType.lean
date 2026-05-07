@@ -20,6 +20,17 @@ structure SourcePos where
   column : USize
   deriving Repr, BEq, Ord, Inhabited
 
+namespace SourcePos
+
+/--
+Returns true if position `a` occurs strictly before position `b` in the source text.
+Comparison is performed lexicographically: first by line, then by column.
+-/
+def isBefore (a b : SourcePos) : Bool :=
+  a.line < b.line || (a.line == b.line && a.column < b.column)
+
+end SourcePos
+
 structure SourceRange where
   start : SourcePos
   end_ : SourcePos
@@ -128,6 +139,24 @@ structure SourceToken where
   trailingComments : Array CommentWithoutLine
   value : Token
   deriving Repr, BEq
+
+namespace SourceToken
+
+/--
+Compares two tokens and returns the one that starts earlier in the source file.
+If they start at the same position, the first argument is returned.
+-/
+def minByStart (a b : SourceToken) : SourceToken :=
+  if SourcePos.isBefore a.range.start b.range.start then a else b
+
+/--
+Compares two tokens and returns the one that finishes later in the source file.
+If they end at the same position, the first argument is returned.
+-/
+def maxByEnd (a b : SourceToken) : SourceToken :=
+  if SourcePos.isBefore a.range.end_ b.range.end_ then b else a
+
+end SourceToken
 
 instance : SizeOf SourceToken where
   sizeOf _ := 0

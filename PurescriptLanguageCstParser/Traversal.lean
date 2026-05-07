@@ -9,7 +9,7 @@ open PurescriptLanguageCstParser.Types
 namespace PurescriptLanguageCstParser.Traversal
 
 --------------------------------------------------------------------
--- Rewrite type aliases (matching PureScript)
+-- Rewrite type aliases (matching Purescript)
 --------------------------------------------------------------------
 
 abbrev Rewrite (e : Type) (f g : Type → Type) :=

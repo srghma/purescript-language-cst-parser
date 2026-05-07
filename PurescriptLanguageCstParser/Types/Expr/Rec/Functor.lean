@@ -101,7 +101,7 @@ mutual
     · exact Separated.sizeOf_head s
     · simp_wf
       obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
-      have : e = s.tail[i].2 := by simp? [h]
+      have : e = s.tail[i].2 := by simp only [h]
       rw [this]; exact s.sizeOf_tail_get i hi
 
   -- ── Delimited (RecordLabeled (Expr e)) ─────────────────────────────
@@ -124,7 +124,7 @@ mutual
     · exact Separated.sizeOf_head s
     · simp_wf
       obtain ⟨i, hi, h⟩ := Array.mem_iff_getElem.mp _hmem
-      have : rl = s.tail[i].2 := by simp? [h]
+      have : rl = s.tail[i].2 := by simp only [h]
       rw [this]; exact s.sizeOf_tail_get i hi
 
   -- ── RecordLabeled (Expr e) ─────────────────────────────────────────
@@ -309,13 +309,13 @@ mutual
     | mk expr bindings =>
       cases bindings with
       | none =>
-          simp? [WhereRecursive.mk.sizeOf_spec]
+          simp only [WhereRecursive.mk.sizeOf_spec, Option.none.sizeOf_spec]
           omega
       | some p =>
           cases p with
           | mk t bs =>
             -- now `data` is definitionally `mk expr (some (t, bs))`
-            simp? [WhereRecursive.mk.sizeOf_spec]
+            simp only [WhereRecursive.mk.sizeOf_spec, Option.some.sizeOf_spec, Prod.mk.sizeOf_spec]
             -- goal should now be arithmetic and solvable by omega
             omega
     cases data with
