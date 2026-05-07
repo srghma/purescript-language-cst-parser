@@ -9,11 +9,11 @@ public import PurescriptLanguageCstParser.Types.Expr.Rec.Basic
 public import PurescriptLanguageCstParser.Types.Expr.Rec.Simp
 public import PurescriptLanguageCstParser.Types.Expr.Rec.Functor
 @[expose] public section
-namespace PureScript.CST.Types
+namespace PurescriptLanguageCstParser.Types
 
 open NonEmpty.CorrectByConstruction.Array
 open NonEmpty.String
-open PureScript.CST.Types
+open PurescriptLanguageCstParser.Types
 
 -- ╔══════════════════════════════════════════════════════════════════╗
 -- ║  map_comp theorems                                               ║
@@ -145,4 +145,4 @@ mutual
     · sorry
 end
 
-end PureScript.CST.Types
+end PurescriptLanguageCstParser.Types

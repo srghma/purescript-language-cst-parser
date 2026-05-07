@@ -4,9 +4,9 @@ public import PurescriptLanguageCstParser.Types.PType
 
 @[expose] public section
 
-namespace PureScript.CST.Print
+namespace PurescriptLanguageCstParser.Print
 
-open PureScript.CST.Types
+open PurescriptLanguageCstParser.Types
 
 inductive TokenOption
   | ShowLayout
@@ -98,4 +98,4 @@ def printSourceTokenWithOption (option : TokenOption) (tok : SourceToken) : Stri
 
 def printSourceToken : SourceToken → String := printSourceTokenWithOption .HideLayout
 
-end PureScript.CST.Print
+end PurescriptLanguageCstParser.Print

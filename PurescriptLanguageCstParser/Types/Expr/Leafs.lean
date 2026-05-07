@@ -16,11 +16,11 @@ meta import PurescriptLanguageCstParser.GenerateFixed
   have h1 := Array.sizeOf_getElem arr i hi
   omega
 
-namespace PureScript.CST.Types
+namespace PurescriptLanguageCstParser.Types
 
 open NonEmpty.CorrectByConstruction.Array
 open NonEmpty.String
-open PureScript.CST.Types
+open PurescriptLanguageCstParser.Types
 
 inductive DataMembers
   | All (token : SourceToken)
@@ -2337,4 +2337,4 @@ instance : LawfulFunctor ModuleHeader where
 
 end ModuleHeader
 
-end PureScript.CST.Types
+end PurescriptLanguageCstParser.Types

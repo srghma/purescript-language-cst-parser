@@ -10,11 +10,11 @@ meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section
 
-namespace PureScript.CST.Types
+namespace PurescriptLanguageCstParser.Types
 
 open NonEmpty.CorrectByConstruction.Array
 open NonEmpty.String
-open PureScript.CST.Types
+open PurescriptLanguageCstParser.Types
 
 -- ╔══════════════════════════════════════════════════════════════════╗
 -- ║  Map definitions                                                 ║

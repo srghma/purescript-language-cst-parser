@@ -7,11 +7,11 @@ import PurescriptLanguageCstParser.Types.PType
 public import PurescriptLanguageCstParser.Types.Expr.Leafs
 public import PurescriptLanguageCstParser.Types.Expr.Rec.Basic
 @[expose] public section
-namespace PureScript.CST.Types
+namespace PurescriptLanguageCstParser.Types
 
 open NonEmpty.CorrectByConstruction.Array
 -- open NonEmpty.String
--- open PureScript.CST.Types
+-- open PurescriptLanguageCstParser.Types
 
 -- ╔══════════════════════════════════════════════════════════════════╗
 -- ║  sizeOf theorems                                                 ║
@@ -20,7 +20,7 @@ open NonEmpty.CorrectByConstruction.Array
 @[simp] theorem PatternGuardRecursive.sizeOf_expr_lt {e : Type} (data : PatternGuardRecursive e) : sizeOf data.expr < sizeOf data := by
   cases data; decreasing_trivial
 
-@[simp] theorem LetBindingRecursive.sizeOf_Signature_labeled_lt {e : Type} (labeled : Labeled (PureScript.CST.Types.Name Ident) (Type_ e)) : sizeOf labeled < sizeOf (LetBindingRecursive.Signature (e := e) labeled) := by
+@[simp] theorem LetBindingRecursive.sizeOf_Signature_labeled_lt {e : Type} (labeled : Labeled (PurescriptLanguageCstParser.Types.Name Ident) (Type_ e)) : sizeOf labeled < sizeOf (LetBindingRecursive.Signature (e := e) labeled) := by
   simp only [Signature.sizeOf_spec, Nat.lt_add_left_iff_pos, Nat.lt_add_one];
 
 @[simp] theorem LetBindingRecursive.sizeOf_Name_fields_lt {e : Type} (fields : ValueBindingFieldsRecursive e) : sizeOf fields < sizeOf (LetBindingRecursive.Name (e := e) fields) := by

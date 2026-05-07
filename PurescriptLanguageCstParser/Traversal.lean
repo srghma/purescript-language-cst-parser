@@ -3,10 +3,10 @@ public import PurescriptLanguageCstParser.Types
 import NonEmpty.CorrectByConstruction.Array
 
 open NonEmpty.CorrectByConstruction.Array
-open PureScript.CST.Types
+open PurescriptLanguageCstParser.Types
 @[expose] public section
 
-namespace PureScript.CST.Traversal
+namespace PurescriptLanguageCstParser.Traversal
 
 --------------------------------------------------------------------
 -- Rewrite type aliases (matching PureScript)
@@ -398,4 +398,4 @@ def foldMapModule {r : Type} [Add r] [OfNat r 0] (v : Visitor e (StateM r)) : Mo
 
 end Combinators
 
-end PureScript.CST.Traversal
+end PurescriptLanguageCstParser.Traversal

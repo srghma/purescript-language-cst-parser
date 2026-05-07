@@ -5,7 +5,7 @@ public import NonEmpty.String
 import Aesop
 import PurescriptLanguageCstParser.GenerateFixed
 
-namespace PureScript.CST.Types
+namespace PurescriptLanguageCstParser.Types
 
 open NonEmpty.CorrectByConstruction.Array
 open NonEmpty.String
@@ -38,22 +38,22 @@ inductive Comment (l : Type)
 
 namespace Comment
 -- Why full name? Bc inductive type Comment has a constructor also named Comment
-@[inline_if_reduce, simp] def map {α β : Type} (f : α → β) (c : PureScript.CST.Types.Comment α) : PureScript.CST.Types.Comment β :=
+@[inline_if_reduce, simp] def map {α β : Type} (f : α → β) (c : PurescriptLanguageCstParser.Types.Comment α) : PurescriptLanguageCstParser.Types.Comment β :=
   match c with
   | .Comment s    => .Comment s
   | .Space i      => .Space i
   | .Line l i     => .Line (f l) i
 
-@[inline_if_reduce, simp] def mapM {α β : Type} {m : Type → Type} [Applicative m] (f : α → m β) (c : PureScript.CST.Types.Comment α) : m (PureScript.CST.Types.Comment β) :=
+@[inline_if_reduce, simp] def mapM {α β : Type} {m : Type → Type} [Applicative m] (f : α → m β) (c : PurescriptLanguageCstParser.Types.Comment α) : m (PurescriptLanguageCstParser.Types.Comment β) :=
   match c with
   | .Comment s    => pure (.Comment s)
   | .Space i      => pure (.Space i)
   | .Line l i     => (.Line · i) <$> f l
 
-@[simp] theorem id_map {α : Type} (c : PureScript.CST.Types.Comment α) : (c.map id) = c := by
+@[simp] theorem id_map {α : Type} (c : PurescriptLanguageCstParser.Types.Comment α) : (c.map id) = c := by
   cases c with | Comment s => rfl | Space i => rfl | Line l i => rfl
 
-@[simp] theorem comp_map {α β γ : Type} (f : α → β) (g : β → γ) (c : PureScript.CST.Types.Comment α) : (c.map (g ∘ f)) = (c.map f |>.map g) := by
+@[simp] theorem comp_map {α β γ : Type} (f : α → β) (g : β → γ) (c : PurescriptLanguageCstParser.Types.Comment α) : (c.map (g ∘ f)) = (c.map f |>.map g) := by
   cases c with | Comment s => rfl | Space i => rfl | Line l i => rfl
 
 @[simp] theorem map_id_fun {α : Type} : map (id : α → α) = id := by funext c; exact id_map c
@@ -1018,12 +1018,12 @@ namespace TypeF
     | .Parens w                 => .Parens <$> w.mapM f
     | .Error e                  => pure (.Error e)
 
-  @[simp] theorem sizeOf_row [SizeOf e] {type_e : Type} [SizeOf type_e] (w : Wrapped (PureScript.CST.Types.Row type_e)) : sizeOf w.value < sizeOf (TypeF.Row (e := e) (type_e := type_e) w) := by
+  @[simp] theorem sizeOf_row [SizeOf e] {type_e : Type} [SizeOf type_e] (w : Wrapped (PurescriptLanguageCstParser.Types.Row type_e)) : sizeOf w.value < sizeOf (TypeF.Row (e := e) (type_e := type_e) w) := by
     change sizeOf w.value < 1 + sizeOf w
     have := Wrapped.sizeOf_value w
     omega
 
-  @[simp] theorem sizeOf_record [SizeOf e] {type_e : Type} [SizeOf type_e] (w : Wrapped (PureScript.CST.Types.Row type_e)) : sizeOf w.value < sizeOf (TypeF.Record (e := e) (type_e := type_e) w) := by
+  @[simp] theorem sizeOf_record [SizeOf e] {type_e : Type} [SizeOf type_e] (w : Wrapped (PurescriptLanguageCstParser.Types.Row type_e)) : sizeOf w.value < sizeOf (TypeF.Record (e := e) (type_e := type_e) w) := by
     change sizeOf w.value < 1 + sizeOf w
     have := Wrapped.sizeOf_value w
     omega
@@ -1924,4 +1924,4 @@ instance : LawfulFunctor Type_ where
     simpa only [Functor.map] using Type_.map_comp g h t
 
 end
-end PureScript.CST.Types
+end PurescriptLanguageCstParser.Types

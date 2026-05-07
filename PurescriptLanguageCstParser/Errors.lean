@@ -4,10 +4,10 @@ public import PurescriptLanguageCstParser.Types.PType
 public import PurescriptLanguageCstParser.Print
 @[expose] public section
 
-open PureScript.CST.Types
-open PureScript.CST.Print
+open PurescriptLanguageCstParser.Types
+open PurescriptLanguageCstParser.Print
 
-namespace PureScript.CST.Errors
+namespace PurescriptLanguageCstParser.Errors
 
 def printTokenError : Token → String
   | .LeftParen => "'('"
@@ -78,4 +78,4 @@ def printParseError : ParseError → String
   | .LexNumberOutOfRange str => "Number out of range " ++ str
 
 
-end PureScript.CST.Errors
+end PurescriptLanguageCstParser.Errors

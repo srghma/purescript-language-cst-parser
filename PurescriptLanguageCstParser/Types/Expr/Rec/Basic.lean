@@ -6,7 +6,7 @@ meta import PurescriptLanguageCstParser.GenerateFixed
 
 @[expose] public section
 
-namespace PureScript.CST.Types
+namespace PurescriptLanguageCstParser.Types
 
 -- https://github.com/leanprover/lean4/issues/13465#issuecomment-4349653768
 /--
@@ -228,4 +228,4 @@ generate_fixed_mutual?
 end_generate_fixed_mutual
 
 
-end PureScript.CST.Types
+end PurescriptLanguageCstParser.Types
