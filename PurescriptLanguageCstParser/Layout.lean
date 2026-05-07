@@ -4,6 +4,7 @@ public import PurescriptLanguageCstParser.Types
 
 namespace PurescriptLanguageCstParser.Layout
 open PurescriptLanguageCstParser.Types
+@[expose] public section
 
 inductive LayoutDelim
   | LytRoot
@@ -420,5 +421,5 @@ def insertLayout (src : SourceToken) (nextPos : SourcePos) (stack : LayoutStack)
 
   let finalState := insert { stk := stack, acc := #[] }
   (finalState.stk, finalState.acc)
-
+end
 end PurescriptLanguageCstParser.Layout

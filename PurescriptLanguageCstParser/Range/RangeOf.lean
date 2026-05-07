@@ -29,7 +29,7 @@ instance : RangeOf Empty where
 instance : RangeOf RecoveredError where
   rangeOf err :=
     let tokens := err.tokens
-    match tokens[0]?, tokens[tokens.size - 1]? with
+    match tokens[0]?, tokens.back? with
     | some first, some last =>
         { start := first.range.start, end_ := last.range.end_ }
     | _, _ =>
@@ -45,7 +45,7 @@ instance {a : Type} : RangeOf (Wrapped a) where
   rangeOf w := { start := w.open_.range.start, end_ := w.close.range.end_ }
 
 def rangeOf_Separated_Helper {α : Type} (f : α → SourceRange) (s : Separated α) : SourceRange :=
-  match s.tail[s.tail.size - 1]? with
+  match s.tail.back? with
   | some (_, last) => { start := (f s.head).start, end_ := (f last).end_ }
   | none => f s.head
 
@@ -83,11 +83,11 @@ instance : RangeOf DataMembers where
 instance : RangeOf ClassFundep where
   rangeOf cf := match cf with
     | .Determined tok ns =>
-        let last_range := (ns.tail[ns.tail.size - 1]?.map RangeOf.rangeOf).getD (RangeOf.rangeOf ns.head)
+        let last_range := (ns.tail.back?.map RangeOf.rangeOf).getD (RangeOf.rangeOf ns.head)
         { start := tok.range.start, end_ := last_range.end_ }
     | .Determines ns1 _ ns2 =>
         let first_range := RangeOf.rangeOf ns1.head
-        let last_range := (ns2.tail[ns2.tail.size - 1]?.map RangeOf.rangeOf).getD (RangeOf.rangeOf ns2.head)
+        let last_range := (ns2.tail.back?.map RangeOf.rangeOf).getD (RangeOf.rangeOf ns2.head)
         { start := first_range.start, end_ := last_range.end_ }
 
 instance : RangeOf FixityOp where
@@ -118,10 +118,10 @@ mutual
     | .Forall tok _ _ ty => { start := tok.range.start, end_ := (rangeOf_Type_ ty).end_ }
     | .Kinded ty1 _ ty2 => { start := (rangeOf_Type_ ty1).start, end_ := (rangeOf_Type_ ty2).end_ }
     | .App ty tys =>
-        let last_ty := (tys.tail[tys.tail.size - 1]?.getD tys.head)
+        let last_ty := tys.tail.back?.getD tys.head
         { start := (rangeOf_Type_ ty).start, end_ := (rangeOf_Type_ last_ty).end_ }
     | .Op ty ops =>
-        let last_op_ty := (ops.tail[ops.tail.size - 1]?.getD ops.head).2
+        let last_op_ty := (ops.tail.back?.getD ops.head).2
         { start := (rangeOf_Type_ ty).start, end_ := (rangeOf_Type_ last_op_ty).end_ }
     | .OpName n => RangeOf.rangeOf n
     | .Arrow ty1 _ ty2 => { start := (rangeOf_Type_ ty1).start, end_ := (rangeOf_Type_ ty2).end_ }
@@ -162,13 +162,13 @@ mutual
     { start := id.keyword.range.start, end_ := end_pos }
 
   partial def rangeOf_ModuleHeader (m : ModuleHeader e) : SourceRange :=
-    let end_pos := match m.imports[m.imports.size - 1]? with
+    let end_pos := match m.imports.back? with
       | some imp => (rangeOf_ImportDecl imp).end_
       | none => m.where_.range.end_
     { start := m.keyword.range.start, end_ := end_pos }
 
   partial def rangeOf_DataCtor (dc : DataCtor e) : SourceRange :=
-    let end_pos := match dc.parameters[dc.parameters.size - 1]? with
+    let end_pos := match dc.parameters.back? with
       | some p => (rangeOf_Type_ p).end_
       | none => (RangeOf.rangeOf dc.name).end_
     { start := (RangeOf.rangeOf dc.name).start, end_ := end_pos }
@@ -183,7 +183,7 @@ mutual
     | .Newtype head _ _ ty => { start := head.keyword.range.start, end_ := (rangeOf_Type_ ty).end_ }
     | .Class head optionSeparator =>
       let end_pos := match optionSeparator with
-        | some (_, ls) => (rangeOf_Type_ (ls.tail[ls.tail.size - 1]?.getD ls.head).value).end_
+        | some (_, ls) => (rangeOf_Type_ (ls.tail.back?.getD ls.head).value).end_
         | none => (rangeOf_ClassHead_End head)
       { start := head.keyword.range.start, end_ := end_pos }
     | .InstanceChain insts => (rangeOf_Separated_Helper rangeOf_Instance insts)
@@ -194,7 +194,7 @@ mutual
     | .Fixity fields => RangeOf.rangeOf fields
     | .Foreign keyword _ frn => { start := keyword.range.start, end_ := (rangeOf_Foreign frn).end_ }
     | .Role keyword _ _ roles =>
-      let last_range := (roles.tail[roles.tail.size - 1]?.map (·.1.range)).getD roles.head.1.range
+      let last_range := (roles.tail.back?.map (·.1.range)).getD roles.head.1.range
       { start := keyword.range.start, end_ := last_range.end_ }
     | .Error e_inner => RangeOf.rangeOf e_inner
 
@@ -202,7 +202,7 @@ mutual
     { start := (RangeOf.rangeOf fields.name).start, end_ := (rangeOf_GuardedRecursive fields.guarded).end_ }
 
   partial def rangeOf_DataHead_End (h_val : DataHead e) : SourcePos :=
-    match h_val.parameters[h_val.parameters.size - 1]? with
+    match h_val.parameters.back? with
     | some (p : TypeVarBinding (Name Ident) (Type_ e)) =>
         match p with
         | .Kinded w => w.close.range.end_
@@ -214,7 +214,7 @@ mutual
     match h_val.fundependencies with
     | some (_, s) => (RangeOf.rangeOf s).end_
     | none =>
-        match h_val.parameters[h_val.parameters.size - 1]? with
+        match h_val.parameters.back? with
         | some (p : TypeVarBinding (Name Ident) (Type_ e)) =>
             match p with
             | .Kinded w => w.close.range.end_
@@ -223,13 +223,13 @@ mutual
             (RangeOf.rangeOf h_val.name).end_
 
   partial def rangeOf_InstanceHead_End (h_val : InstanceHead e) : SourcePos :=
-    match h_val.types[h_val.types.size - 1]? with
+    match h_val.types.back? with
     | some ty => (rangeOf_Type_ ty).end_
     | none => (RangeOf.rangeOf h_val.className).end_
 
   partial def rangeOf_Instance (inst : Instance e) : SourceRange :=
     let end_pos := match inst.body with
-      | some (_, bs) => (rangeOf_InstanceBinding (bs.tail[bs.tail.size - 1]?.getD bs.head)).end_
+      | some (_, bs) => (rangeOf_InstanceBinding (bs.tail.back?.getD bs.head)).end_
       | none => (rangeOf_InstanceHead_End inst.head)
     { start := inst.head.keyword.range.start, end_ := end_pos }
 
@@ -239,7 +239,7 @@ mutual
 
   partial def rangeOf_GuardedRecursive (g : GuardedRecursive e) : SourceRange := match g with
     | .Unconditional tok wh => { start := tok.range.start, end_ := (rangeOf_WhereRecursive wh).end_ }
-    | .Guarded gs => { start := (rangeOf_GuardedExprRecursive gs.head).start, end_ := (rangeOf_GuardedExprRecursive (gs.tail[gs.tail.size - 1]?.getD gs.head)).end_ }
+    | .Guarded gs => { start := (rangeOf_GuardedExprRecursive gs.head).start, end_ := (rangeOf_GuardedExprRecursive (gs.tail.back?.getD gs.head)).end_ }
 
   partial def rangeOf_GuardedExprRecursive (ge : GuardedExprRecursive e) : SourceRange :=
     { start := ge.bar.range.start, end_ := (rangeOf_WhereRecursive ge.where_).end_ }
@@ -267,23 +267,23 @@ mutual
     | .Record exprs => RangeOf.rangeOf exprs
     | .Parens w => RangeOf.rangeOf w
     | .Typed e_inner _ ty => { start := (rangeOf_Expr e_inner).start, end_ := (rangeOf_Type_ ty).end_ }
-    | .Infix e_inner ops => { start := (rangeOf_Expr e_inner).start, end_ := (rangeOf_Expr (ops.tail[ops.tail.size - 1]?.getD ops.head).2).end_ }
-    | .Op e_inner ops => { start := (rangeOf_Expr e_inner).start, end_ := (rangeOf_Expr (ops.tail[ops.tail.size - 1]?.getD ops.head).2).end_ }
+    | .Infix e_inner ops => { start := (rangeOf_Expr e_inner).start, end_ := (rangeOf_Expr (ops.tail.back?.getD ops.head).2).end_ }
+    | .Op e_inner ops => { start := (rangeOf_Expr e_inner).start, end_ := (rangeOf_Expr (ops.tail.back?.getD ops.head).2).end_ }
     | .OpName n => RangeOf.rangeOf n
     | .Negate tok e_inner => { start := tok.range.start, end_ := (rangeOf_Expr e_inner).end_ }
     | .RecordAccessor rec => { start := (rangeOf_Expr rec.expr).start, end_ := (RangeOf.rangeOf rec.path).end_ }
     | .RecordUpdate e_inner upds => { start := (rangeOf_Expr e_inner).start, end_ := (RangeOf.rangeOf upds).end_ }
-    | .App fn args => { start := (rangeOf_Expr fn).start, end_ := (rangeOf_AppSpineRecursive (args.tail[args.tail.size - 1]?.getD args.head)).end_ }
+    | .App fn args => { start := (rangeOf_Expr fn).start, end_ := (rangeOf_AppSpineRecursive (args.tail.back?.getD args.head)).end_ }
     | .Lambda rec => { start := rec.symbol.range.start, end_ := (rangeOf_Expr rec.body).end_ }
     | .If rec => { start := rec.keyword.range.start, end_ := (rangeOf_Expr rec.false_).end_ }
-    | .Case rec => { start := rec.keyword.range.start, end_ := (rangeOf_GuardedRecursive (rec.branches.tail[rec.branches.size - 1]?.getD rec.branches.head).2).end_ }
+    | .Case rec => { start := rec.keyword.range.start, end_ := (rangeOf_GuardedRecursive (rec.branches.tail.back?.getD rec.branches.head).2).end_ }
     | .Let rec => { start := rec.keyword.range.start, end_ := (rangeOf_Expr rec.body).end_ }
     | .Do rec => { start := rec.keyword.range.start, end_ := (rangeOf_NonEmptyArray_DoStatementRecursive rec.statements).end_ }
     | .Ado rec => { start := rec.keyword.range.start, end_ := (rangeOf_Expr rec.result).end_ }
     | .Error e_inner => RangeOf.rangeOf e_inner
 
   partial def rangeOf_NonEmptyArray_DoStatementRecursive (arr : NonEmptyArray (DoStatementRecursive e)) : SourceRange :=
-    { start := (rangeOf_DoStatementRecursive arr.head).start, end_ := (rangeOf_DoStatementRecursive (arr.tail[arr.tail.size - 1]?.getD arr.head)).end_ }
+    { start := (rangeOf_DoStatementRecursive arr.head).start, end_ := (rangeOf_DoStatementRecursive (arr.tail.back?.getD arr.head)).end_ }
 
   partial def rangeOf_AppSpineRecursive (spine : AppSpineRecursive e) : SourceRange := match spine with
     | .Type_ tok a => { start := tok.range.start, end_ := (rangeOf_Type_ a).end_ }
@@ -296,7 +296,7 @@ mutual
     | .Error e_inner => RangeOf.rangeOf e_inner
 
   partial def rangeOf_DoStatementRecursive (ds : DoStatementRecursive e) : SourceRange := match ds with
-    | .Let tok bindings => { start := tok.range.start, end_ := (rangeOf_LetBindingRecursive (bindings.tail[bindings.tail.size - 1]?.getD bindings.head)).end_ }
+    | .Let tok bindings => { start := tok.range.start, end_ := (rangeOf_LetBindingRecursive (bindings.tail.back?.getD bindings.head)).end_ }
     | .Discard expr => rangeOf_Expr expr
     | .Bind b _ expr => { start := (rangeOf_Binder b).start, end_ := (rangeOf_Expr expr).end_ }
     | .Error e_inner => RangeOf.rangeOf e_inner
@@ -306,7 +306,7 @@ mutual
     | .Var n => RangeOf.rangeOf n
     | .Named n _ b_ => { start := (RangeOf.rangeOf n).start, end_ := (rangeOf_Binder b_).end_ }
     | .Constructor n bs =>
-        let end_pos := match bs[bs.size - 1]? with
+        let end_pos := match bs.back? with
           | some last_b => (rangeOf_Binder last_b).end_
           | none => (RangeOf.rangeOf n).end_
         { start := (RangeOf.rangeOf n).start, end_ := end_pos }
@@ -325,12 +325,12 @@ mutual
     | .Record bs => RangeOf.rangeOf bs
     | .Parens b_ => RangeOf.rangeOf b_
     | .Typed b_ _ ty => { start := (rangeOf_Binder b_).start, end_ := (rangeOf_Type_ ty).end_ }
-    | .Op b_ ops => { start := (rangeOf_Binder b_).start, end_ := (rangeOf_Binder (ops.tail[ops.tail.size - 1]?.getD ops.head).2).end_ }
+    | .Op b_ ops => { start := (rangeOf_Binder b_).start, end_ := (rangeOf_Binder (ops.tail.back?.getD ops.head).2).end_ }
     | .Error e_inner => RangeOf.rangeOf e_inner
 
   partial def rangeOf_WhereRecursive (w : WhereRecursive e) : SourceRange :=
     let end_pos := match w.bindings with
-      | some (_, bs) => (rangeOf_LetBindingRecursive (bs.tail[bs.tail.size - 1]?.getD bs.head)).end_
+      | some (_, bs) => (rangeOf_LetBindingRecursive (bs.tail.back?.getD bs.head)).end_
       | none => (rangeOf_Expr w.expr).end_
     { start := (rangeOf_Expr w.expr).start, end_ := end_pos }
 
