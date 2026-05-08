@@ -73,3 +73,6 @@ You can also benchmark or parse a single file:
 npm run bench-file MyModule.purs
 npm run parse-file -- MyModule.purs --tokens
 ```
+
+### Alternatives
+- `lean` port of this lib is https://github.com/srghma/lean-purescript-language-cst-parser
