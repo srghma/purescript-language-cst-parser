@@ -12,4 +12,5 @@ import PurescriptLanguageCstParser.Lexer
 import PurescriptLanguageCstParser.TokenStream
 import PurescriptLanguageCstParser.Parser.Monad
 import PurescriptLanguageCstParser.ModuleGraph
+import PurescriptLanguageCstParser.Exec
 import PurescriptLanguageCstParser.CST

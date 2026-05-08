@@ -2,13 +2,30 @@ name = "purescript-language-cst-parser"
 version = "0.1.0"
 # defaultTargets = ["purescript-language-cst-parser"]
 defaultTargets = ["PurescriptLanguageCstParser"]
+testDriver = "Test"
 
 [[lean_lib]]
 name = "PurescriptLanguageCstParser"
 
-# [[lean_exe]]
-# name = "purescript-language-cst-parser"
-# root = "Main"
+[[lean_exe]]
+name = "BenchFile"
+root = "BenchFile.Run"
+supportInterpreter = true
+
+[[lean_exe]]
+name = "Test"
+root = "Test.Run"
+supportInterpreter = true
+
+[[lean_exe]]
+name = "ParseFile"
+root = "ParseFile.Run"
+supportInterpreter = true
+
+[[lean_exe]]
+name = "ParsePackageSet"
+root = "ParsePackageSet.Run"
+supportInterpreter = true
 
 [[require]]
 name = "NonEmpty"
