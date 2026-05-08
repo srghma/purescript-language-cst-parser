@@ -6,7 +6,7 @@ A parser for the PureScript concrete syntax tree.
 
 The supported parsers are exported from `PureScript.CST`. The parsers support
 some error recovery, which is reflected in the `RecoveredParserResult` type.
-The CST types in `PureScript.CST.Types` are indexed by an error type, which
+The CST types in `PurescriptLanguageCstParser.Types` are indexed by an error type, which
 is fixed to `RecoveredError` in the case of failures. Parses that succeed
 without failures have the error type fixed to `Void`.
 
@@ -24,7 +24,7 @@ example = case parseModule myModuleSource of
 
 ## Traversals
 
-`PureScript.CST.Traversal` contains traversals for analyzing and rewriting
+`PurescriptLanguageCstParser.Traversal` contains traversals for analyzing and rewriting
 the CST. These folds take a language visitor record with functions for
 handling the primary types in the CST. Default records are provided that do
 nothing for the cases you don't care about.
@@ -40,8 +40,8 @@ import Data.Map as Map
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
-import PureScript.CST.Traversal (foldMapModule, defaultMonoidalVisitor)
-import PureScript.CST.Types as CST
+import PurescriptLanguageCstParser.Traversal (foldMapModule, defaultMonoidalVisitor)
+import PurescriptLanguageCstParser.Types as CST
 
 type QualifiedIdent = Tuple (Maybe CST.ModuleName) CST.Ident
 type UsageMap = SemigroupMap QualifiedIdent (Set CST.SourceRange)
