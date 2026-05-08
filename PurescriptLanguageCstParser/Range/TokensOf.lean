@@ -119,7 +119,7 @@ mutual
     | .Constructor n => TokensOf.tokensOf n
     | .Wildcard tok => TokenList.singleton tok
     | .Hole n => TokensOf.tokensOf n
-    | .NonEmptyString tok _ => TokenList.singleton tok
+    | .String tok _ => TokenList.singleton tok
     | .Int pref tok _ =>
       match pref with
       | none => TokenList.singleton tok
@@ -362,7 +362,7 @@ mutual
     | .Constructor n => TokensOf.tokensOf n
     | .Boolean tok _ => TokenList.singleton tok
     | .Char tok _ => TokenList.singleton tok
-    | .NonEmptyString tok _ => TokenList.singleton tok
+    | .String tok _ => TokenList.singleton tok
     | .Int tok _ => TokenList.singleton tok
     | .Number tok _ => TokenList.singleton tok
     | .Array exprs => tokensOf_Delimited_Expr exprs
@@ -476,7 +476,7 @@ mutual
     | .Constructor n bs => TokensOf.tokensOf n ++ tokensOf_Array_Binder bs
     | .Boolean tok _ => TokenList.singleton tok
     | .Char tok _ => TokenList.singleton tok
-    | .NonEmptyString tok _ => TokenList.singleton tok
+    | .String tok _ => TokenList.singleton tok
     | .Int pref tok _ =>
       match pref with
       | none => TokenList.singleton tok

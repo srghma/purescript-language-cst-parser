@@ -407,7 +407,7 @@ def insertLayout (src : SourceToken) (nextPos : SourcePos) (stack : LayoutStack)
       let state'' := popStack (fun lyt => lyt == LayoutDelim.LytSquare) state'
       insertToken src state''
 
-    | .NonEmptyString _ _ | .RawString _ =>
+    | .String _ _ | .RawString _ =>
       let state' := insertDefault state
       popStack (fun lyt => lyt == LayoutDelim.LytProperty) state'
 

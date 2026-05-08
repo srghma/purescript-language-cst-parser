@@ -30,7 +30,7 @@ mutual
     | .Constructor n      => .Constructor n
     | .Boolean t v        => .Boolean t v
     | .Char t v           => .Char t v
-    | .NonEmptyString t v => .NonEmptyString t v
+    | .String t v => .String t v
     | .Int t v            => .Int t v
     | .Number t v         => .Number t v
     | .OpName n           => .OpName n

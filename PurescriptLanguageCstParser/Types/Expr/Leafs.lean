@@ -337,7 +337,7 @@ inductive BinderF (e binder_e : Type)
   | Constructor (name : QualifiedName Proper) (args : Array binder_e)
   | Boolean (token : SourceToken) (val : Bool)
   | Char (token : SourceToken) (val : Char)
-  | NonEmptyString (token : SourceToken) (val : NonEmptyString)
+  | String (token : SourceToken) (val : String)
   | Int (prefix_ : Option SourceToken) (token : SourceToken) (val : IntValue)
   | Number (prefix_ : Option SourceToken) (token : SourceToken) (val : Float)
   | Array (items : Delimited binder_e)
@@ -358,7 +358,7 @@ namespace BinderF
   | Constructor n args => Constructor n (args.map f_binder)
   | Boolean t v => Boolean t v
   | Char t v => Char t v
-  | NonEmptyString t v => NonEmptyString t v
+  | String t v => String t v
   | Int p t v => Int p t v
   | Number p t v => Number p t v
   | Array items => Array (items.map f_binder)
@@ -405,7 +405,7 @@ namespace BinderF
   | Constructor n args => Constructor n <$> args.mapM f_binder
   | Boolean t v => pure (Boolean t v)
   | Char t v => pure (Char t v)
-  | NonEmptyString t v => pure (NonEmptyString t v)
+  | String t v => pure (String t v)
   | Int p t v => pure (Int p t v)
   | Number p t v => pure (Number p t v)
   | Array items => Array <$> items.mapM f_binder
@@ -427,7 +427,7 @@ inductive Binder (e : Type) : Type where
   | Constructor (name : QualifiedName Proper) (args : Array (Binder e)) : Binder e
   | Boolean (token : SourceToken) (val : Bool) : Binder e
   | Char (token : SourceToken) (val : Char) : Binder e
-  | NonEmptyString (token : SourceToken) (val : NonEmptyString) : Binder e
+  | String (token : SourceToken) (val : String) : Binder e
   | Int (prefix_ : Option SourceToken) (token : SourceToken) (val : IntValue) : Binder e
   | Number (prefix_ : Option SourceToken) (token : SourceToken) (val : Float) : Binder e
   | Array (items : Delimited (Binder e)) : Binder e
@@ -472,7 +472,7 @@ mutual
       | .Constructor n args => .Constructor n (args.attach.map (fun ⟨b, _hmem⟩ => map f b))
       | .Boolean t v        => .Boolean t v
       | .Char t v           => .Char t v
-      | .NonEmptyString t v => .NonEmptyString t v
+      | .String t v => .String t v
       | .Int p t v          => .Int p t v
       | .Number p t v       => .Number p t v
       | .Array items        => .Array (mapDelimited f items)
@@ -575,7 +575,7 @@ mutual
         · simpa only [Array.getElem_map, Array.getElem_attach] using map_id args[i]
     | .Boolean t v => simp only [map]
     | .Char t v => simp only [map]
-    | .NonEmptyString t v => simp only [map]
+    | .String t v => simp only [map]
     | .Int p t v => simp only [map]
     | .Number p t v => simp only [map]
     | .Array (.mk ⟨open_, none, close⟩) =>
@@ -785,7 +785,7 @@ mutual
           congrArg (Binder.Constructor n) hargs
     | .Boolean _ _ => simp only [map]
     | .Char _ _ => simp only [map]
-    | .NonEmptyString _ _ => simp only [map]
+    | .String _ _ => simp only [map]
     | .Int _ _ _ => simp only [map]
     | .Number _ _ _ => simp only [map]
     | .Array items =>
@@ -1044,7 +1044,7 @@ mutual
       | .Constructor n args => .Constructor n <$> args.attach.mapM (fun ⟨b, _hmem⟩ => mapM f b)
       | .Boolean t v        => pure (.Boolean t v)
       | .Char t v           => pure (.Char t v)
-      | .NonEmptyString t v => pure (.NonEmptyString t v)
+      | .String t v => pure (.String t v)
       | .Int p t v          => pure (.Int p t v)
       | .Number p t v       => pure (.Number p t v)
       | .Array items        => .Array <$> mapMDelimited f items
@@ -1876,7 +1876,7 @@ inductive ExprF (e expr_e doBlock adoBlock guardedRecursive_e letBindingRecursiv
   | Constructor (name : QualifiedName Proper)
   | Boolean (token : SourceToken) (val : Bool)
   | Char (token : SourceToken) (val : Char)
-  | NonEmptyString (token : SourceToken) (val : NonEmptyString)
+  | String (token : SourceToken) (val : String)
   | Int (token : SourceToken) (val : IntValue)
   | Number (token : SourceToken) (val : Float)
   | Array (items : Delimited expr_e)
@@ -1924,7 +1924,7 @@ set_option linter.unusedVariables false in
   | Constructor n => Constructor n
   | Boolean t v => Boolean t v
   | Char t v => Char t v
-  | NonEmptyString t v => NonEmptyString t v
+  | String t v => String t v
   | Int t v => Int t v
   | Number t v => Number t v
   | Array items => Array (items.map f_expr)
@@ -1956,7 +1956,7 @@ set_option linter.unusedVariables false in
   | Constructor n => simp only [map_all]
   | Boolean t v => simp only [map_all]
   | Char t v => simp only [map_all]
-  | NonEmptyString t v => simp only [map_all]
+  | String t v => simp only [map_all]
   | Int t v => simp only [map_all]
   | Number t v => simp only [map_all]
   | Array items => simp only [map_all, Delimited.map, Separated.map_id_fun, id_map]
@@ -2006,7 +2006,7 @@ set_option linter.unusedVariables false in
   | Constructor n => simp only [map_all]
   | Boolean t v => simp only [map_all]
   | Char t v => simp only [map_all]
-  | NonEmptyString t v => simp only [map_all]
+  | String t v => simp only [map_all]
   | Int t v => simp only [map_all]
   | Number t v => simp only [map_all]
   | Array items => simp only [map_all, Delimited.map, Separated.map_comp_fun, comp_map,
@@ -2118,7 +2118,7 @@ set_option linter.unusedVariables false in
   | Constructor n => pure (Constructor n)
   | Boolean t v => pure (Boolean t v)
   | Char t v => pure (Char t v)
-  | NonEmptyString t v => pure (NonEmptyString t v)
+  | String t v => pure (String t v)
   | Int t v => pure (Int t v)
   | Number t v => pure (Number t v)
   | Array items => Array <$> items.mapM f_expr

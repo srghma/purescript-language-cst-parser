@@ -107,7 +107,7 @@ mutual
     | Constructor (name : QualifiedName Proper) : Expr e
     | Boolean (token : SourceToken) (val : Bool) : Expr e
     | Char (token : SourceToken) (val : Char) : Expr e
-    | NonEmptyString (token : SourceToken) (val : NonEmpty.String.NonEmptyString) : Expr e
+    | String (token : SourceToken) (val : String) : Expr e
     | Int (token : SourceToken) (val : IntValue) : Expr e
     | Number (token : SourceToken) (val : Float) : Expr e
     | Array (items : Delimited (Expr e)) : Expr e
@@ -133,8 +133,7 @@ mutual
     | Ado (data : AdoBlockRecursive e) : Expr e
     | Error (data : e) : Expr e
     deriving Repr, BEq
-end
--/
+end-/
 #guard_msgs in
 set_option linter.unusedVariables false in
 generate_fixed_mutual?

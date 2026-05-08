@@ -26,7 +26,7 @@ mutual
     | .Constructor n      => pure (.Constructor n)
     | .Boolean t v        => pure (.Boolean t v)
     | .Char t v           => pure (.Char t v)
-    | .NonEmptyString t v => pure (.NonEmptyString t v)
+    | .String t v => pure (.String t v)
     | .Int t v            => pure (.Int t v)
     | .Number t v         => pure (.Number t v)
     | .OpName n           => pure (.OpName n)

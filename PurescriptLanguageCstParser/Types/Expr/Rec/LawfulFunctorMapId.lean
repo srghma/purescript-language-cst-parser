@@ -23,7 +23,7 @@ set_option linter.unusedSimpArgs false in
 mutual
   theorem Expr.map_id {e : Type} (expr : Expr e) : Expr.map id expr = expr := by
     match expr with
-    | .Hole _ | .Section _ | .Ident _ | .Constructor _ | .Boolean _ _ | .Char _ _ | .NonEmptyString _ _ | .Int _ _ | .Number _ _ | .OpName _ =>
+    | .Hole _ | .Section _ | .Ident _ | .Constructor _ | .Boolean _ _ | .Char _ _ | .String _ _ | .Int _ _ | .Number _ _ | .OpName _ =>
         unfold Expr.map; rfl
     | .Error d =>
         unfold Expr.map; dsimp;

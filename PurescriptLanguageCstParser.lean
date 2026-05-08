@@ -9,3 +9,7 @@ import PurescriptLanguageCstParser.GenerateFixed
 import PurescriptLanguageCstParser.GenerateFixedTests
 import PurescriptLanguageCstParser.Range
 import PurescriptLanguageCstParser.Lexer
+import PurescriptLanguageCstParser.TokenStream
+import PurescriptLanguageCstParser.Parser.Monad
+import PurescriptLanguageCstParser.ModuleGraph
+import PurescriptLanguageCstParser.CST

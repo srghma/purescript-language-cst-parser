@@ -76,7 +76,7 @@ def printTokenWithOption (option : TokenOption) : Token → String
   | .SymbolArrow style => match style with | .ASCII => "(->)" | .Unicode => "(→)"
   | .Hole name => "?" ++ name.toString
   | .Char raw _ => "'" ++ raw ++ "'"
-  | .NonEmptyString raw _ => "\"" ++ raw ++ "\""
+  | .String raw _ => "\"" ++ raw ++ "\""
   | .RawString raw => "\"\"\"" ++ raw ++ "\"\"\""
   | .Int raw _ => raw
   | .Number raw _ => raw

@@ -108,7 +108,7 @@ mutual
     | .Constructor n => RangeOf.rangeOf n
     | .Wildcard tok => tok.range
     | .Hole n => RangeOf.rangeOf n
-    | .NonEmptyString tok _ => tok.range
+    | .String tok _ => tok.range
     | .Int pref tok _ =>
       match pref with
       | none => tok.range
@@ -260,7 +260,7 @@ mutual
     | .Constructor n => RangeOf.rangeOf n
     | .Boolean tok _ => tok.range
     | .Char tok _ => tok.range
-    | .NonEmptyString tok _ => tok.range
+    | .String tok _ => tok.range
     | .Int tok _ => tok.range
     | .Number tok _ => tok.range
     | .Array exprs => RangeOf.rangeOf exprs
@@ -312,7 +312,7 @@ mutual
         { start := (RangeOf.rangeOf n).start, end_ := end_pos }
     | .Boolean tok _ => tok.range
     | .Char tok _ => tok.range
-    | .NonEmptyString tok _ => tok.range
+    | .String tok _ => tok.range
     | .Int pref tok _ =>
       match pref with
       | none => tok.range

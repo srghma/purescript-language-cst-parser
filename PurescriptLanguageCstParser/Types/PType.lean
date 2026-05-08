@@ -124,8 +124,8 @@ inductive Token
   | SymbolArrow (style : SourceStyle)
   | Hole (name : NonEmptyString)
   | Char (s : NonEmptyString) (c : Char)
-  | NonEmptyString (s : NonEmptyString) (value : NonEmptyString)
-  | RawString (s : NonEmptyString)
+  | String (s : String) (value : String)
+  | RawString (s : String)
   | Int (s : NonEmptyString) (value : IntValue)
   | Number (s : NonEmptyString) (value : Float)
   | LayoutStart (i : USize)
@@ -985,7 +985,7 @@ inductive TypeF (e type_e : Type)
   | Constructor (name : QualifiedName Proper)
   | Wildcard (token : SourceToken)
   | Hole (name : Name Ident)
-  | NonEmptyString (token : SourceToken) (value : NonEmptyString)
+  | String (token : SourceToken) (value : String)
   | Int (prefix_ : Option SourceToken) (token : SourceToken) (value : IntValue)
   | Row (wrapped : Wrapped (Row type_e))
   | Record (wrapped : Wrapped (Row type_e))
@@ -1012,7 +1012,7 @@ namespace TypeF
     | .Constructor n            => .Constructor n
     | .Wildcard t               => .Wildcard t
     | .Hole n                   => .Hole n
-    | .NonEmptyString t v       => .NonEmptyString t v
+    | .String t v               => .String t v
     | .Int p t v                => .Int p t v
     | .Row w                    => .Row ((f <$> ·) <$> w)   -- Wrapped (Row type_e)
     | .Record w                 => .Record ((f <$> ·) <$> w)
@@ -1032,7 +1032,7 @@ namespace TypeF
     | .Constructor n            => pure (.Constructor n)
     | .Wildcard t               => pure (.Wildcard t)
     | .Hole n                   => pure (.Hole n)
-    | .NonEmptyString t v       => pure (.NonEmptyString t v)
+    | .String t v       => pure (.String t v)
     | .Int p t v                => pure (.Int p t v)
     | .Row w                    => .Row <$> w.mapM (Row.mapM f)
     | .Record w                 => .Record <$> w.mapM (Row.mapM f)
@@ -1165,7 +1165,7 @@ namespace TypeF
     | .Constructor n => .Constructor n
     | .Wildcard t => .Wildcard t
     | .Hole n => .Hole n
-    | .NonEmptyString t v => .NonEmptyString t v
+    | .String t v => .String t v
     | .Int p t v => .Int p t v
     | .Forall o bs c body => .Forall o bs c body
     | .Kinded t sep k => .Kinded t sep k
@@ -1333,7 +1333,7 @@ mutual
     | .Constructor n         => .Constructor n
     | .Wildcard t            => .Wildcard t
     | .Hole n                => .Hole n
-    | .NonEmptyString t v    => .NonEmptyString t v
+    | .String t v    => .String t v
     | .Int p t v             => .Int p t v
     | .Kinded t sep k        => .Kinded (Type_.map g t) sep (Type_.map g k)
     | .Arrow d tok c         => .Arrow (Type_.map g d) tok (Type_.map g c)
@@ -1413,7 +1413,7 @@ mutual
     | .Constructor n         => pure (.Constructor n)
     | .Wildcard t            => pure (.Wildcard t)
     | .Hole n                => pure (.Hole n)
-    | .NonEmptyString t v    => pure (.NonEmptyString t v)
+    | .String t v    => pure (.String t v)
     | .Int p t v             => pure (.Int p t v)
     | .Kinded t sep k        => .Kinded <$> Type_.mapM g t <*> pure sep <*> Type_.mapM g k
     | .Arrow d tok c         => .Arrow <$> Type_.mapM g d <*> pure tok <*> Type_.mapM g c

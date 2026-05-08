@@ -36,7 +36,7 @@ def printTokenError : Token → String
   | .SymbolArrow style => match style with | .ASCII => "(->)" | .Unicode => "(→)"
   | .Hole name => "hole ?" ++ name.toString
   | .Char raw _ => "char literal '" ++ raw ++ "'"
-  | .NonEmptyString _raw _ => "string literal"
+  | .String _raw _ => "string literal"
   | .RawString _ => "raw string literal"
   | .Int raw _ => "int literal " ++ raw
   | .Number raw _ => "number literal " ++ raw
@@ -50,7 +50,7 @@ inductive ParseError where
   | UnexpectedToken (tok : Token)
   | ExpectedToken (expected saw : Token)
   | ExpectedClass (cls : String) (tok : Token)
-  | LexExpected (expected saw : String)
+  | LexExpected (expected : String) (saw : String)
   | LexInvalidCharEscape (s : String)
   | LexCharEscapeOutOfRange (s : String)
   | LexHexOutOfRange (s : String)
